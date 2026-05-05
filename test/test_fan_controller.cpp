@@ -226,7 +226,7 @@ bool Esp32BaseWeb::checkAuth() { return true; }
 void Esp32BaseWeb::setAuth(const char*, const char* pass) {
     strncpy(g_authPass, pass ? pass : "", sizeof(g_authPass) - 1);
 }
-bool Esp32BaseWeb::addPage(const char*, Handler) { return true; }
+bool Esp32BaseWeb::addPage(const char*, const char*, Handler) { return true; }
 bool Esp32BaseWeb::addApi(const char*, Handler) { return true; }
 bool Esp32BaseWeb::hasParam(const char* name) {
     for (uint8_t i = 0; i < g_paramCount; ++i) {

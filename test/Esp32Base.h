@@ -75,7 +75,7 @@ public:
     using Handler = void (*)();
     static bool checkAuth();
     static void setAuth(const char* user, const char* pass);
-    static bool addPage(const char* path, Handler handler);
+    static bool addPage(const char* path, const char* title, Handler handler);
     static bool addApi(const char* path, Handler handler);
     static bool hasParam(const char* name);
     static bool getParam(const char* name, char* out, size_t len);

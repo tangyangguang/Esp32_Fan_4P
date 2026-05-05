@@ -36,21 +36,6 @@ static const char APP_STYLE[] PROGMEM =
     "@media(max-width:390px){body{padding:8px}.chips{grid-template-columns:repeat(3,1fr)}.chips3{grid-template-columns:repeat(3,1fr)}.formgrid{grid-template-columns:1fr}.nav2{grid-template-columns:1fr 1fr}.speed{font-size:1.9em}}"
     "</style>";
 
-static const char APP_NAV[] PROGMEM =
-    "<div class=nav2><a class=btn href='/fan'>Fan</a><a class=btn href='/config'>Settings</a><a class=btn href='/esp32base'>Base</a>"
-    "<a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>";
-
-void FanWeb::handleAppPage() {
-    if (!Esp32BaseWeb::checkAuth()) return;
-    ESP32BASE_LOG_I("FanWeb", "page_view path=/app");
-
-    Esp32BaseWeb::sendHeader("App");
-    Esp32BaseWeb::sendChunk(APP_STYLE);
-    Esp32BaseWeb::sendChunk("<div class=top><div><h2>ESP32 Fan</h2><div class=muted>Fan control and device tools</div></div></div>");
-    Esp32BaseWeb::sendChunk(APP_NAV);
-    Esp32BaseWeb::sendFooter();
-}
-
 static const char FAN_PAGE_TOP[] PROGMEM =
     "<div class=top><div><h2>Fan</h2><div class=muted>Fast presets, exact input</div></div><div class=speed><span id=tgtTop>";
 static const char FAN_SPEED_END[] PROGMEM =
@@ -68,7 +53,7 @@ static const char FAN_TIMER_INPUT_END[] PROGMEM =
     "'><button onclick='tm(document.getElementById(\"tv\").value)'>Set</button></div>"
     "<div class=actions><button class=secondary onclick='tm(0)'>Cancel timer</button><button class=danger onclick='stopFan()'>Stop fan</button></div>"
     "<div class=help>Cancel timer keeps the fan running. Stop fan turns the fan off and clears the timer.</div></div>"
-    "<div class=nav2><a class=btn href='/app'>App</a><a class=btn href='/config'>Settings</a><a class=btn href='/esp32base'>Base</a>"
+    "<div class=nav2><a class=btn href='/config'>Settings</a><a class=btn href='/esp32base'>Base</a>"
     "<a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
     "<script>"
     "var rem=";
@@ -200,7 +185,7 @@ static const char CONFIG_AUTO_END2[] PROGMEM = ">Disabled</option></select><div 
     "<button onclick='learn(0,\"Speed Up\")'>Speed Up</button><button onclick='learn(1,\"Speed Down\")'>Speed Down</button><button onclick='learn(2,\"Stop\")'>Stop</button>"
     "<button onclick='learn(3,\"30 min\")'>30 min</button><button onclick='learn(4,\"1 h\")'>1 h</button><button onclick='learn(5,\"2 h\")'>2 h</button>"
     "</div><div class=help>Press one, then point the remote within 10 seconds.</div></div>"
-    "<div class=nav2><a class=btn href='/app'>App</a><a class=btn href='/fan'>Fan</a><a class=btn href='/esp32base'>Base</a>"
+    "<div class=nav2><a class=btn href='/fan'>Fan</a><a class=btn href='/esp32base'>Base</a>"
     "<a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
     "<script>"
     "function setMsg(t,c){var m=document.getElementById('saveMsg');m.textContent=t;m.className='savebar '+c}"

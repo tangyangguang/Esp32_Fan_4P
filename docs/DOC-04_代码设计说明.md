@@ -82,10 +82,9 @@
 
 页面：
 
-- `GET /app`：应用入口页，集中跳转业务页和基础库管理页。
 - `GET /fan`：状态和控制。
 - `GET /config`：参数配置、Web 密码、红外学习入口。
-- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Reboot。
+- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Reboot，并通过 `addPage(path, title, handler)` 展示业务入口。
 
 API：
 
@@ -186,9 +185,8 @@ API：
 - `http://192.168.2.112/esp32base/logs` 和 `http://192.168.2.112/esp32base/ota` 页面 GET 返回 HTTP 200。
 - `POST http://192.168.2.112/esp32base/ota` 上传当前 `firmware.bin` 返回 `{"ok":true}`，重启后基础库和业务页面/API 恢复正常。
 - 临时设置 `sleep_wait=3` 后设备进入 `sleep` 状态，`/api/status` 仍可访问；验证后已恢复 `sleep_wait=60`。
-- `http://192.168.2.112/app` 页面可在浏览器中显示 Fan、Settings、Base、Logs、OTA、Reboot 入口。
-- `/fan` 和 `/config` 底部导航已覆盖 App、Fan/Settings、Base、Logs、OTA、Reboot。
-- `/` 和 `/esp32base` 由 Esp32Base 内置页面控制，当前顶栏仍只有 Home、WiFi、OTA、Logs、Reboot，不能展示 `/fan`；已记录基础库提示词。
+- `/fan` 和 `/config` 通过 `Esp32BaseWeb::addPage(path, title, handler)` 注册为业务入口，`/esp32base` 首页和内置顶栏已展示 Fan、Settings。
+- 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出。
 
 观察项：
 

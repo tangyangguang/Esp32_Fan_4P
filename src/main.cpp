@@ -45,9 +45,8 @@ static void loadWebAuthBeforeBaseBegin() {
 
 static void registerFanRoutes() {
     bool ok = true;
-    ok &= Esp32BaseWeb::addPage("/app", FanWeb::handleAppPage);
-    ok &= Esp32BaseWeb::addPage("/fan", FanWeb::handleStatusPage);
-    ok &= Esp32BaseWeb::addPage("/config", FanWeb::handleConfigPage);
+    ok &= Esp32BaseWeb::addPage("/fan", "Fan", FanWeb::handleStatusPage);
+    ok &= Esp32BaseWeb::addPage("/config", "Settings", FanWeb::handleConfigPage);
     ok &= Esp32BaseWeb::addApi("/api/status", FanWeb::handleApiStatus);
     ok &= Esp32BaseWeb::addApi("/api/speed", FanWeb::handleApiSpeed);
     ok &= Esp32BaseWeb::addApi("/api/timer", FanWeb::handleApiTimer);

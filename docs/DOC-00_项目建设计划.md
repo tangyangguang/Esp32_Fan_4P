@@ -85,8 +85,8 @@
 - 直接 IP 访问 `/esp32base/logs` 和 `/esp32base/ota` 页面均返回 HTTP 200。
 - 已通过 `/esp32base/ota` 上传同版本固件，上传返回 `{"ok":true}`，重启后 `/esp32base/api/status`、`/api/status`、`/fan`、`/esp32base/logs` 均恢复正常。
 - 已临时设置 `sleep_wait=3` 验证 WiFi power save，进入 `sleep` 状态后 `/api/status` 仍可访问；验证后恢复 `sleep_wait=60`。
-- 新增 `/app` 应用入口页，业务页导航可到达 Fan、Settings、Esp32Base、Logs、OTA、Reboot。
-- `/` 和 `/esp32base` 属于 Esp32Base 内置首页，当前仍不能展示 `/fan` 入口；已记录基础库提示词，等待 Esp32Base 支持应用导航扩展。
+- 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
+- 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出。
 - `esp32-fan.local` 访问存在约 5 秒解析等待，直接 IP 访问无此等待；暂判断为客户端侧 mDNS 解析延迟。
 
 ### 阶段 4：实机验收
@@ -109,16 +109,14 @@
 | --- | --- | --- | --- |
 | P0 | 实机验证 PWM 25 kHz 和占空比 | 硬件验证 | 需要 ESP32 和示波器 |
 | P0 | 实机验证 TACH RPM 和堵转保护 | 硬件验证 | 需要四线风扇 |
-| P1 | Esp32Base 首页/顶栏增加应用入口 | 基础库完善 | 已给出提示词，需基础库支持 |
 | P1 | 记录 mDNS 解析延迟观察 | 基础库验证 | 若持续影响浏览器访问，再反馈基础库 |
 | P2 | 根据实机结果微调 GPIO/页面/参数默认值 | 本项目 | 依赖实机反馈 |
 | P2 | 编写实机验收记录 | 文档/测试 | 依赖硬件 |
 
 ## 5. 下一步计划
 
-1. 在 Esp32Base 增加应用导航扩展 API 后，把 `/` 或 `/esp32base` 首页接入 `/fan`。
-2. 在浏览器中人工检查 `/app`、`/fan`、`/config`、`/esp32base/logs` 的页面交互体验。
-3. 用示波器验证 GPIO25 PWM 频率和占空比。
-4. 接入四线风扇验证 TACH RPM、堵转保护和软启动/停止。
-5. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
-6. 根据实机结果更新文档、默认参数和 GitHub 仓库。
+1. 在浏览器中人工检查 `/esp32base`、`/fan`、`/config`、`/esp32base/logs` 的页面交互体验。
+2. 用示波器验证 GPIO25 PWM 频率和占空比。
+3. 接入四线风扇验证 TACH RPM、堵转保护和软启动/停止。
+4. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
+5. 根据实机结果更新文档、默认参数和 GitHub 仓库。
