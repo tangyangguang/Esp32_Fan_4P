@@ -110,6 +110,7 @@ void setup() {
 #if ESP32BASE_ENABLE_FILELOG
     Esp32BaseFileLog::enable("/logs/app.log", 16UL * 1024UL, Esp32BaseLog::DEBUG, 4);
     Esp32BaseConfig::enableConfigAudit(true);
+    Esp32BaseConfig::enableConfigReadAudit(true);
 #endif
 
     fanController.begin();
