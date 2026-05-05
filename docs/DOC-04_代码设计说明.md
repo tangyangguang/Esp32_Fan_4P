@@ -176,3 +176,15 @@ API：
 
 - `pio run -e esp32dev` 通过。
 - `pio test -e native` 通过，7 个测试用例成功。
+- `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
+- AP 配网后设备 IP 为 `192.168.2.112`，`esp32-fan.local` 可解析。
+- `http://192.168.2.112/api/status` 返回风扇状态、IP、RSSI、NTP 时间。
+- `http://192.168.2.112/fan` 和 `http://192.168.2.112/config` 页面可完整返回。
+- `http://192.168.2.112/api/speed?speed=35`、`/api/timer?seconds=60`、`/api/stop`、`/api/ir/status` 均返回成功。
+- `http://192.168.2.112/esp32base/api/status` 返回 Esp32Base Full profile、heap、flash、WiFi connected 状态。
+- `http://192.168.2.112/esp32base/logs` 和 `http://192.168.2.112/esp32base/ota` 页面 GET 返回 HTTP 200。
+
+观察项：
+
+- 使用 `esp32-fan.local` 通过 curl 访问时，首次解析约等待 5 秒；直接 IP 访问业务接口响应约 0.1-1.0 秒。
+- 当前判断这是客户端侧 mDNS 解析表现，不作为本项目阻塞项；若浏览器长期复现明显延迟，再整理为 Esp32Base mDNS 体验优化提示词。

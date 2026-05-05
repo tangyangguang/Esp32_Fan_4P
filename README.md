@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-当前阶段已经完成文档、最小工程环境和核心代码迁移：
+当前阶段已经完成文档、最小工程环境、核心代码迁移和首轮 ESP32 实机网络验证：
 
 - PlatformIO ESP32 工程环境。
 - Esp32Base Full profile 引入。
@@ -14,6 +14,9 @@
 - ESP32 版需求、硬件、架构和代码设计文档。
 - Esp32Base Full profile framework 依赖锚定。
 - 核心 native 单元测试。
+- 已烧录到 `/dev/cu.usbserial-130`。
+- 已通过 Esp32Base AP 配网并连接局域网。
+- 已验证 `/fan`、`/config`、业务 API 和 `/esp32base/api/status` 可访问。
 
 ## 目标功能
 
@@ -73,6 +76,9 @@ pio device monitor -e esp32dev
 - `pio test -e native` 通过。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
 - 串口启动日志确认进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
+- 用户完成 AP 配网后，`esp32-fan.local` 解析到 `192.168.2.112`，`/esp32base/api/status` 返回 `profile=FULL`、`wifi.connected=true`。
+- 直接访问 `192.168.2.112` 时，`/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/ir/status` 均已通过实机请求验证。
+- `esp32-fan.local` 首次 curl 访问约有 5 秒解析等待；直接 IP 访问业务状态接口约 0.36 秒，判断为客户端侧 mDNS 解析延迟，不是 Web handler 阻塞。
 
 `platformio.ini` 显式列出 Esp32Base Full profile 使用到的 Arduino framework 库，并通过 `src/deps_esp32base_full.cpp` 锚定 LDF 链接依赖；这与 Esp32Base 示例工程保持一致。
 

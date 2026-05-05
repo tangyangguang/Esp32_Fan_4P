@@ -29,7 +29,8 @@
 | 测试状态 | 已通过 | `pio test -e native`，7 个用例通过 |
 | 烧录状态 | 已通过 | `/dev/cu.usbserial-130`，115200 上传成功 |
 | 启动状态 | 已通过 | 进入 `ESP32-Config-65E4` 配网 AP，Web server ready |
-| 业务代码迁移 | 已完成基础闭环 | 仍需实机验证 PWM/RPM/OTA/Web |
+| 业务代码迁移 | 已完成基础闭环 | 仍需实机验证 PWM/RPM/OTA |
+| WiFi 配网与 Web/API | 已完成首轮验证 | 用户已完成 AP 配网，设备在局域网可访问 |
 
 ## 3. 阶段计划
 
@@ -76,6 +77,14 @@
 - OTA 可上传。
 - `/esp32base/logs` 可看到应用日志。
 
+当前结果：
+
+- AP 配网完成后，`esp32-fan.local` 解析到 `192.168.2.112`。
+- `/esp32base/api/status` 返回 `profile=FULL`、`wifi.connected=true`。
+- 直接 IP 访问 `/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/ir/status` 均成功。
+- 直接 IP 访问 `/esp32base/logs` 和 `/esp32base/ota` 页面均返回 HTTP 200。
+- `esp32-fan.local` 访问存在约 5 秒解析等待，直接 IP 访问无此等待；暂判断为客户端侧 mDNS 解析延迟。
+
 ### 阶段 4：实机验收
 
 目标：
@@ -96,16 +105,18 @@
 | --- | --- | --- | --- |
 | P0 | 实机验证 PWM 25 kHz 和占空比 | 硬件验证 | 需要 ESP32 和示波器 |
 | P0 | 实机验证 TACH RPM 和堵转保护 | 硬件验证 | 需要四线风扇 |
-| P1 | 实机验证 Web 配网、mDNS、日志、OTA | 基础库验证 | 需要连接 AP/局域网 |
+| P1 | 实机验证 OTA 上传 | 基础库验证 | 需要通过浏览器上传固件 |
 | P1 | 实机验证 WiFi power save 后 Web 可访问 | 基础库验证 | 需要设备长时间运行 |
+| P1 | 记录 mDNS 解析延迟观察 | 基础库验证 | 若持续影响浏览器访问，再反馈基础库 |
 | P2 | 根据实机结果微调 GPIO/页面/参数默认值 | 本项目 | 依赖实机反馈 |
 | P2 | 编写实机验收记录 | 文档/测试 | 依赖硬件 |
 
 ## 5. 下一步计划
 
-1. 连接 `ESP32-Config-65E4` 配网 AP，访问 `192.168.4.1` 完成 WiFi 配置。
-2. 访问 `/fan` 和 `/esp32base`，确认页面与 Basic Auth。
+1. 通过 `/esp32base/ota` 上传同版本固件，验证 Web OTA 和 Basic Auth。
+2. 在浏览器中人工检查 `/fan`、`/config`、`/esp32base/logs` 的页面交互体验。
 3. 用示波器验证 GPIO25 PWM 频率和占空比。
 4. 接入四线风扇验证 TACH RPM、堵转保护和软启动/停止。
-5. 验证 `/esp32base/logs`、`/esp32base/ota`、mDNS、BOOT 清 WiFi。
-6. 根据实机结果更新文档和默认参数。
+5. 停止风扇并等待超过 `sleep_wait`，验证 WiFi power save 后 Web/API 仍可访问。
+6. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
+7. 根据实机结果更新文档、默认参数和 GitHub 仓库。
