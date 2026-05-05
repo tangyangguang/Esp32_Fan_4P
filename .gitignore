@@ -1,0 +1,12 @@
+.pio/
+.vscode/
+.DS_Store
+
+*.bin
+*.elf
+*.map
+*.hex
+*.o
+*.a
+
+compile_commands.json

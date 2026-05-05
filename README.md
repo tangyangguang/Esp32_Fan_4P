@@ -1,0 +1,86 @@
+# Esp32_Fan_4P
+
+`Esp32_Fan_4P` 是基于 ESP32 的四线 PWM 风扇控制器项目，用于壁炉烟囱正压送风场景。
+
+本项目的业务功能对齐成熟项目 `/Users/tyg/dir/claude_dir/ESP12F_Fan_4P`，但硬件平台改为 ESP32，并使用 `/Users/tyg/dir/claude_dir/Esp32Base` 提供基础能力。项目建设过程中同时验证 Esp32Base 的完整模块能力；凡是属于基础库能力缺口或 bug 的问题，记录到 [docs/ESP32BASE_PROMPTS.md](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/ESP32BASE_PROMPTS.md)，不在本项目业务代码中长期绕补丁。
+
+## 当前阶段
+
+当前阶段已经完成文档、最小工程环境和核心代码迁移：
+
+- PlatformIO ESP32 工程环境。
+- Esp32Base Full profile 引入。
+- IRremoteESP8266 依赖引入。
+- ESP32 版需求、硬件、架构和代码设计文档。
+- Esp32Base Full profile framework 依赖锚定。
+- 核心 native 单元测试。
+
+## 目标功能
+
+- 0-100% PWM 调速，目标 PWM 频率 25 kHz。
+- 四线风扇 TACH 转速反馈和堵转保护。
+- 软启动、软停止。
+- 本地加速/减速按键。
+- 红外遥控学习和控制。
+- 定时运行、断电恢复和累计运行时长统计。
+- Web 控制页、配置页、REST API 和日志页。
+- WiFi 配网、mDNS、NTP、OTA、文件日志、看门狗、低功耗策略。
+- BOOT 键长按清除 WiFi 凭证并重启进入配网流程。
+
+## 基础库使用原则
+
+本项目要求使用 Esp32Base 的所有模块能力，工程默认使用：
+
+```ini
+-DESP32BASE_PROFILE=ESP32BASE_PROFILE_FULL
+```
+
+对应能力包括：
+
+- Core：日志、配置、系统信息。
+- Runtime：事件总线、看门狗、Sleep、FS、文件日志、健康诊断。
+- Network：WiFi、DNS captive portal、NTP、mDNS。
+- Web：基础管理页面、鉴权、应用自定义路由、日志页面。
+- OTA：Web OTA。
+
+## 初始引脚规划
+
+| 功能 | ESP32 GPIO | 说明 |
+| --- | --- | --- |
+| 风扇 PWM | GPIO25 | LEDC PWM 输出 |
+| 风扇 TACH | GPIO26 | 中断输入，`INPUT_PULLUP` |
+| 加速按键 | GPIO32 | `INPUT_PULLUP` |
+| 减速按键 | GPIO33 | `INPUT_PULLUP` |
+| 板载 LED | GPIO2 | 常见 DevKit 板载 LED，默认 active-low |
+| 红外接收 | GPIO27 | 1838 红外接收头 |
+| BOOT / 清 WiFi | GPIO0 | 长按 1 秒清除 WiFi 凭证 |
+
+实际硬件打板前应以目标 ESP32 模组和开发板原理图复核 GPIO 启动绑定位、输入输出能力和外设冲突。
+
+## 构建命令
+
+```bash
+pio run -e esp32dev
+pio run -e esp32dev -t upload
+pio device monitor -e esp32dev
+```
+
+当前 USB 串口 `/dev/cu.usbserial-130` 在 921600 上传速率下不稳定，工程已把 `upload_speed` 固定为 `115200`。
+
+当前构建状态：
+
+- `pio run -e esp32dev` 通过。
+- `pio test -e native` 通过。
+- `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
+- 串口启动日志确认进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
+
+`platformio.ini` 显式列出 Esp32Base Full profile 使用到的 Arduino framework 库，并通过 `src/deps_esp32base_full.cpp` 锚定 LDF 链接依赖；这与 Esp32Base 示例工程保持一致。
+
+## 文档
+
+- [DOC-00 项目建设计划](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-00_项目建设计划.md)
+- [DOC-01 需求规格说明](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-01_需求规格说明.md)
+- [DOC-02 硬件设计说明](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-02_硬件设计说明.md)
+- [DOC-03 软件架构设计](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-03_软件架构设计.md)
+- [DOC-04 代码设计说明](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-04_代码设计说明.md)
+- [Esp32Base 待完善提示词](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/ESP32BASE_PROMPTS.md)
