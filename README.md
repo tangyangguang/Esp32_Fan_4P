@@ -80,6 +80,8 @@ pio device monitor -e esp32dev
 - 直接访问 `192.168.2.112` 时，`/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/ir/status` 均已通过实机请求验证。
 - 已通过 `/esp32base/ota` 上传同版本固件，OTA 后基础库状态、业务 API、`/fan` 和日志页恢复正常。
 - 已临时设置 `sleep_wait=3` 验证 WiFi power save，设备进入 `sleep` 后 `/api/status` 仍可访问；验证后已恢复 `sleep_wait=60`。
+- 新增应用入口 `/app`，可到达 Fan、Settings、Esp32Base、Logs、OTA、Reboot；业务页底部导航已补齐基础库入口。
+- `/` 和 `/esp32base` 仍由 Esp32Base 内置页面控制，当前无法从基础库首页跳转到 `/fan`；已在 Esp32Base 提示词文档记录基础库导航扩展需求。
 - `esp32-fan.local` 首次 curl 访问约有 5 秒解析等待；直接 IP 访问业务状态接口约 0.36 秒，判断为客户端侧 mDNS 解析延迟，不是 Web handler 阻塞。
 
 `platformio.ini` 显式列出 Esp32Base Full profile 使用到的 Arduino framework 库，并通过 `src/deps_esp32base_full.cpp` 锚定 LDF 链接依赖；这与 Esp32Base 示例工程保持一致。

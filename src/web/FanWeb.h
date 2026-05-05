@@ -11,6 +11,7 @@ public:
     // Page handlers (public for testing)
     static void handleStatusPage();
     static void handleConfigPage();
+    static void handleAppPage();
 
     // API handlers (public for testing)
     static void handleApiStatus();
