@@ -183,6 +183,8 @@ API：
 - `http://192.168.2.112/api/speed?speed=35`、`/api/timer?seconds=60`、`/api/stop`、`/api/ir/status` 均返回成功。
 - `http://192.168.2.112/esp32base/api/status` 返回 Esp32Base Full profile、heap、flash、WiFi connected 状态。
 - `http://192.168.2.112/esp32base/logs` 和 `http://192.168.2.112/esp32base/ota` 页面 GET 返回 HTTP 200。
+- `POST http://192.168.2.112/esp32base/ota` 上传当前 `firmware.bin` 返回 `{"ok":true}`，重启后基础库和业务页面/API 恢复正常。
+- 临时设置 `sleep_wait=3` 后设备进入 `sleep` 状态，`/api/status` 仍可访问；验证后已恢复 `sleep_wait=60`。
 
 观察项：
 

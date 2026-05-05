@@ -83,6 +83,8 @@
 - `/esp32base/api/status` 返回 `profile=FULL`、`wifi.connected=true`。
 - 直接 IP 访问 `/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/ir/status` 均成功。
 - 直接 IP 访问 `/esp32base/logs` 和 `/esp32base/ota` 页面均返回 HTTP 200。
+- 已通过 `/esp32base/ota` 上传同版本固件，上传返回 `{"ok":true}`，重启后 `/esp32base/api/status`、`/api/status`、`/fan`、`/esp32base/logs` 均恢复正常。
+- 已临时设置 `sleep_wait=3` 验证 WiFi power save，进入 `sleep` 状态后 `/api/status` 仍可访问；验证后恢复 `sleep_wait=60`。
 - `esp32-fan.local` 访问存在约 5 秒解析等待，直接 IP 访问无此等待；暂判断为客户端侧 mDNS 解析延迟。
 
 ### 阶段 4：实机验收
@@ -105,18 +107,14 @@
 | --- | --- | --- | --- |
 | P0 | 实机验证 PWM 25 kHz 和占空比 | 硬件验证 | 需要 ESP32 和示波器 |
 | P0 | 实机验证 TACH RPM 和堵转保护 | 硬件验证 | 需要四线风扇 |
-| P1 | 实机验证 OTA 上传 | 基础库验证 | 需要通过浏览器上传固件 |
-| P1 | 实机验证 WiFi power save 后 Web 可访问 | 基础库验证 | 需要设备长时间运行 |
 | P1 | 记录 mDNS 解析延迟观察 | 基础库验证 | 若持续影响浏览器访问，再反馈基础库 |
 | P2 | 根据实机结果微调 GPIO/页面/参数默认值 | 本项目 | 依赖实机反馈 |
 | P2 | 编写实机验收记录 | 文档/测试 | 依赖硬件 |
 
 ## 5. 下一步计划
 
-1. 通过 `/esp32base/ota` 上传同版本固件，验证 Web OTA 和 Basic Auth。
-2. 在浏览器中人工检查 `/fan`、`/config`、`/esp32base/logs` 的页面交互体验。
-3. 用示波器验证 GPIO25 PWM 频率和占空比。
-4. 接入四线风扇验证 TACH RPM、堵转保护和软启动/停止。
-5. 停止风扇并等待超过 `sleep_wait`，验证 WiFi power save 后 Web/API 仍可访问。
-6. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
-7. 根据实机结果更新文档、默认参数和 GitHub 仓库。
+1. 在浏览器中人工检查 `/fan`、`/config`、`/esp32base/logs` 的页面交互体验。
+2. 用示波器验证 GPIO25 PWM 频率和占空比。
+3. 接入四线风扇验证 TACH RPM、堵转保护和软启动/停止。
+4. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
+5. 根据实机结果更新文档、默认参数和 GitHub 仓库。
