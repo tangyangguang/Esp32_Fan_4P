@@ -60,7 +60,7 @@ static const char FAN_TIMER_INPUT_END[] PROGMEM =
 static const char FAN_SCRIPT_TIMER_MID[] PROGMEM =
     ";function e(i,v){var x=document.getElementById(i);if(x)x.textContent=v}"
     "function tf(s){s=parseInt(s||0);if(s<=0)return'Off';var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),r=s%60;return(h?h+'h ':'')+m+'m '+r+'s'}"
-    "function draw(d){e('st',d.state);e('tgt',d.target_speed+'%');e('tgtTop',d.target_speed);e('out',d.speed+'%');e('tim',tf(d.timer_remaining));e('run',Math.floor(d.run_duration/3600)+' h');e('ip',d.ip);e('rssi',d.rssi+' dBm');e('clk',d.clock);e('blk',d.blocked?'Yes':'No');document.getElementById('blk').className=d.blocked?'errtxt':'oktxt';rem=d.timer_remaining;document.getElementById('sv').value=d.target_speed;document.getElementById('tv').value=Math.floor(rem/60)}"
+    "function draw(d){var st=document.getElementById('st');if(st){st.textContent=d.blocked?'Blocked':d.state;st.className=d.blocked?'errtxt':''}e('tgt',d.target_speed+'%');e('tgtTop',d.target_speed);e('out',d.speed+'%');e('tim',tf(d.timer_remaining));e('run',Math.floor(d.run_duration/3600)+' h');e('ip',d.ip);e('rssi',d.rssi+' dBm');e('clk',d.clock);rem=d.timer_remaining;document.getElementById('sv').value=d.target_speed;document.getElementById('tv').value=Math.floor(rem/60)}"
     "function poll(){fetch('/api/status').then(r=>r.json()).then(j=>{if(j.ok)draw(j.data)})}"
     "function post(u,b,cb){fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b}).then(()=>{if(cb)cb();setTimeout(poll,250)})}"
     "function spd(v){v=parseInt(v||0);if(v>=0&&v<=100){e('tgt',v+'%');e('tgtTop',v);document.getElementById('sv').value=v;post('/api/speed','speed='+v)}}"
@@ -84,13 +84,19 @@ void FanWeb::handleStatusPage() {
     Esp32BaseWeb::sendChunk(FAN_SPEED_END);
     
     // State
-    Esp32BaseWeb::sendChunk("<div class=stat><span>State</span><b id=st>");
-    switch (_controller->getState()) {
-        case SYS_IDLE: Esp32BaseWeb::sendChunk("Idle"); break;
-        case SYS_RUNNING: Esp32BaseWeb::sendChunk("Running"); break;
-        case SYS_SLEEP: Esp32BaseWeb::sendChunk("Sleep"); break;
-        case SYS_ERROR: Esp32BaseWeb::sendChunk("Error"); break;
-        default: Esp32BaseWeb::sendChunk("Unknown"); break;
+    snprintf(buf, sizeof(buf), "<div class=stat><span>State</span><b id=st class=%s>",
+             _controller->isBlocked() ? "errtxt" : "");
+    Esp32BaseWeb::sendChunk(buf);
+    if (_controller->isBlocked()) {
+        Esp32BaseWeb::sendChunk("Blocked");
+    } else {
+        switch (_controller->getState()) {
+            case SYS_IDLE: Esp32BaseWeb::sendChunk("Idle"); break;
+            case SYS_RUNNING: Esp32BaseWeb::sendChunk("Running"); break;
+            case SYS_SLEEP: Esp32BaseWeb::sendChunk("Sleep"); break;
+            case SYS_ERROR: Esp32BaseWeb::sendChunk("Error"); break;
+            default: Esp32BaseWeb::sendChunk("Unknown"); break;
+        }
     }
     Esp32BaseWeb::sendChunk("</b></div>");
     
@@ -141,12 +147,6 @@ void FanWeb::handleStatusPage() {
     Esp32BaseWeb::sendChunk("<div class=stat><span>Clock</span><b id=clk>");
     Esp32BaseWeb::sendChunk(buf);
     Esp32BaseWeb::sendChunk("</b></div>");
-
-    // Blocked
-    snprintf(buf, sizeof(buf), "<div class=stat><span>Blocked</span><b id=blk class=%s>%s</b></div>",
-             _controller->isBlocked() ? "errtxt" : "oktxt",
-             _controller->isBlocked() ? "Yes" : "No");
-    Esp32BaseWeb::sendChunk(buf);
 
     Esp32BaseWeb::sendChunk(FAN_STATUS_MID);
     snprintf(buf, sizeof(buf), "%d", _controller->getTargetSpeed());
@@ -262,7 +262,7 @@ void FanWeb::handleApiStatus() {
         rssi = Esp32BaseWiFi::rssi();
     }
     if (Esp32BaseNtp::isTimeSynced()) {
-        Esp32BaseNtp::formatTime(clock, sizeof(clock), "%H:%M:%S");
+        Esp32BaseNtp::formatTime(clock, sizeof(clock), "%Y-%m-%d %H:%M:%S");
     } else {
         strcpy(clock, "N/A");
     }
