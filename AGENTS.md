@@ -15,7 +15,15 @@
 - 本项目只能做必要的业务侧适配，不应复制、绕开或重写 Esp32Base 的基础能力。
 - 如果 Esp32Base 已完成对应能力，要删除本项目临时入口或绕补丁，改回正式 API。
 
-## 3. 已确认的 Esp32Base 设计行为
+## 3. 工程决策原则
+
+- 不管是新需求、bug 修复还是优化，都坚决不要背历史包袱。
+- 坚决不做打补丁、临时方案、过渡方案、绕路方案。
+- 不因为影响代码多、改动范围大、方案需要重构，就选择次优做法。
+- 每次实现都只做最优方案，只采用最佳实践，并让代码和文档一起回到清晰、长期可维护的状态。
+- 如果当前基础能力不支持最佳方案，应反馈到 Esp32Base 或相关基础设施中完善，而不是在本项目局部绕补丁。
+
+## 4. 已确认的 Esp32Base 设计行为
 
 - `Esp32BaseConfig::enableConfigReadAudit(true)` 必须保持开启。
 - `/esp32base/logs` 中出现配置读取明文值，包括 WiFi 密码、Web 密码等，是调试和现场观察设计，不是 bug。
@@ -38,7 +46,7 @@ Esp32BaseWeb::addPage("/config", "Settings", FanWeb::handleConfigPage);
 - Esp32Base Health 普通 tick 日志应是 DEBUG；超过 `ESP32BASE_HEALTH_LOOP_WARN_MS` 才 WARN。
 - 日志中历史残留的旧 INFO health tick 不代表新固件仍有问题，要区分历史段和新启动后的日志。
 
-## 4. Web 和 API 规范
+## 5. Web 和 API 规范
 
 - `/fan` 是风扇主控制页。
 - `/config` 是风扇参数、Web 密码、红外学习配置页。
@@ -49,7 +57,7 @@ Esp32BaseWeb::addPage("/config", "Settings", FanWeb::handleConfigPage);
 - Clock 显示应保持完整日期时间，API 返回格式为 `YYYY-MM-DD HH:MM:SS`。
 - 堵转状态合并到 State 显示；正常显示 Idle/Running/Sleep/Error，堵转时显示 Blocked。
 
-## 5. 日志判断规范
+## 6. 日志判断规范
 
 - `config audit op=getStr ... value=...` 是预期调试日志。
 - `health tick loopMax=...` 是健康心跳/loop 最大间隔观察，不是错误。
@@ -58,7 +66,7 @@ Esp32BaseWeb::addPage("/config", "Settings", FanWeb::handleConfigPage);
 - `web slow_request` 对 `/esp32base/logs` 这类大页面可能正常；持续高延迟才需要进一步分析。
 - 未接风扇时设置非零速度会触发堵转保护，这是合理行为，不要误判为软件 bug。
 
-## 6. 硬件和实机验证
+## 7. 硬件和实机验证
 
 - ESP32 当前连接口为 `/dev/cu.usbserial-130`。
 - 当前设备局域网 IP 曾验证为 `192.168.2.112`，但后续应以实际状态为准。
@@ -70,7 +78,7 @@ Esp32BaseWeb::addPage("/config", "Settings", FanWeb::handleConfigPage);
 - PWM 25 kHz 和占空比必须用示波器或逻辑分析仪验证。
 - TACH RPM、堵转保护、软启动/停止必须接真实四线风扇验证。
 
-## 7. 构建、测试和交付
+## 8. 构建、测试和交付
 
 - 修改代码后至少运行：
 
@@ -88,14 +96,14 @@ pio test -e native
 https://github.com/tangyangguang/Esp32_Fan_4P.git
 ```
 
-## 8. 回复用户的固定要求
+## 9. 回复用户的固定要求
 
 - 每次回复都要包含“剩余工作列表”和“详细下一步计划”。
 - 如果涉及基础库问题，先说明边界，再给出简洁、清楚的提示词；不要在本项目打补丁。
 - 如果用户要求“提示词简洁”，只说明问题，不给实现方案。
 - 如果做了错误判断，要直接承认并撤回对应改动。
 
-## 9. 当前剩余硬件工作
+## 10. 当前剩余硬件工作
 
 - 用示波器验证 GPIO25 PWM 25 kHz 和占空比。
 - 接四线风扇验证 TACH RPM、堵转保护、软启动和软停止。
