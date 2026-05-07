@@ -101,6 +101,7 @@ API：
 实现约束：
 
 - 所有页面和 API 都调用 `Esp32BaseWeb::checkAuth()`。
+- 业务页面不显式放置 `/esp32base/auth` 修改密码入口；该入口由 Esp32Base 系统导航提供。
 - JSON 输出优先使用固定缓冲区。
 - HTML 页面优先 `sendChunk()`，避免大 `String` 拼接。
 - 用户输入进入 JSON/HTML 前要转义；当前短字段先用数值输入，后续补全字符串转义。
@@ -146,7 +147,7 @@ API：
 
 - Esp32Base 模块无法在 Full profile 下编译。
 - Web 路由容量或 handler API 不满足应用需求。
-- Web Auth 无法在 NVS 密码场景下优雅加载。
+- Web Auth 内置持久化能力无法满足业务默认账号和基础库统一管理。
 - FileLog 路径、日志页或 flush 行为不符合应用需求。
 - WiFi power save 无法保持 Web 可访问。
 - OTA 注册和认证条件不清晰。

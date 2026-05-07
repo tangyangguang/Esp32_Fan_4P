@@ -179,14 +179,14 @@ static const char CONFIG_BLOCK_END[] PROGMEM = "'><div class=help>No RPM for thi
     "<div class=field><label>Power-on restore</label><select name=auto_restore><option value=1 ";
 static const char CONFIG_AUTO_END[] PROGMEM = ">Enabled</option><option value=0 ";
 static const char CONFIG_AUTO_END2[] PROGMEM = ">Disabled</option></select><div class=help>Restore last speed and timer after reboot.</div></div></div>"
-    "<div class=actions><button id=saveBtn type=submit>Save</button><a class='btn secondary' href='/esp32base/auth'>Auth</a></div>"
+    "<div class=actions><button id=saveBtn type=submit>Save</button></div>"
     "<span id=saveMsg class='savebar muted'>Ready</span></form>"
     "<div class=panel><h3>IR learning</h3><div class='chips chips3'>"
     "<button onclick='learn(0,\"Speed Up\")'>Speed Up</button><button onclick='learn(1,\"Speed Down\")'>Speed Down</button><button onclick='learn(2,\"Stop\")'>Stop</button>"
     "<button onclick='learn(3,\"30 min\")'>30 min</button><button onclick='learn(4,\"1 h\")'>1 h</button><button onclick='learn(5,\"2 h\")'>2 h</button>"
     "</div><div class=help>Press one, then point the remote within 10 seconds.</div></div>"
     "<div class=nav2><a class=btn href='/fan'>Fan</a><a class=btn href='/esp32base'>Base</a>"
-    "<a class=btn href='/esp32base/auth'>Auth</a><a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
+    "<a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
     "<script>"
     "function setMsg(t,c){var m=document.getElementById('saveMsg');m.textContent=t;m.className='savebar '+c}"
     "function applyCfg(d,f){if(!d)return;f.min_speed.value=d.min_effective_speed;f.sleep_wait.value=d.sleep_wait;f.soft_start.value=d.soft_start;f.soft_stop.value=d.soft_stop;f.block_detect.value=d.block_detect;f.auto_restore.value=d.auto_restore?1:0}"
