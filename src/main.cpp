@@ -18,9 +18,6 @@ static const uint8_t PIN_LED = 2;
 static const uint8_t PIN_IR_RECV = 27;
 static const uint8_t PIN_BOOT = 0;
 
-static const char* CFG_NS = "fan";
-static const char* KEY_WEB_PASS = "web_pass";
-
 static FanDriver fanDriver(PIN_FAN_PWM, PIN_FAN_TACH);
 static ButtonDriver btnDriver(PIN_BTN_ACCEL, PIN_BTN_DECEL);
 static LedIndicator ledIndicator(PIN_LED, true);
@@ -34,13 +31,12 @@ static bool bootPressed = false;
 static bool bootActionDone = false;
 static bool bootClearArmed = false;
 
-static void loadWebAuthBeforeBaseBegin() {
-    char pass[32];
-    Esp32BaseConfig::begin();
-    if (!Esp32BaseConfig::getStr(CFG_NS, KEY_WEB_PASS, pass, sizeof(pass), "admin123") || pass[0] == '\0') {
-        strlcpy(pass, "admin123", sizeof(pass));
-    }
-    Esp32BaseWeb::setAuth("admin", pass);
+static void configureBaseWebBeforeBegin() {
+    Esp32BaseWeb::setDefaultAuth("admin", "admin123");
+    Esp32BaseWeb::setDeviceName("ESP32 Fan");
+    Esp32BaseWeb::setHomePath("/fan");
+    Esp32BaseWeb::setHomeMode(Esp32BaseWeb::HOME_COMBINED);
+    Esp32BaseWeb::setSystemNavMode(Esp32BaseWeb::SYSTEM_NAV_SECTION);
 }
 
 static void registerFanRoutes() {
@@ -98,7 +94,7 @@ void setup() {
 
     Esp32Base::setFirmwareInfo("ESP32_Fan_4P", "0.1.0");
     Esp32Base::setHostname("esp32-fan");
-    loadWebAuthBeforeBaseBegin();
+    configureBaseWebBeforeBegin();
     registerFanRoutes();
 
     if (!Esp32Base::begin()) {

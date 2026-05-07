@@ -52,7 +52,6 @@ public:
     void setSleepWaitTime(uint16_t seconds);
     bool getAutoRestore() const;
     void setAutoRestore(bool enable);
-    void setWebPassword(const char* password);
 
     // Block recovery
     void attemptBlockRecovery();

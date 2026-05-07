@@ -86,6 +86,8 @@
 - 已通过 `/esp32base/ota` 上传同版本固件，上传返回 `{"ok":true}`，重启后 `/esp32base/api/status`、`/api/status`、`/fan`、`/esp32base/logs` 均恢复正常。
 - 已临时设置 `sleep_wait=3` 验证 WiFi power save，进入 `sleep` 状态后 `/api/status` 仍可访问；验证后恢复 `sleep_wait=60`。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
+- Web Auth 已使用 Esp32Base 内置持久化能力，默认账号密码由应用提供，修改入口为 `/esp32base/auth`。
+- 串口烧录新固件后，设备当前持久化 Auth 用户为 `root`，实测 `root/admin` 可访问 `/fan`、`/config`、`/esp32base/auth`、Logs、OTA 和业务 API。
 - 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出。
 - `esp32-fan.local` 访问存在约 5 秒解析等待，直接 IP 访问无此等待；暂判断为客户端侧 mDNS 解析延迟。
 

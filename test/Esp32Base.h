@@ -73,10 +73,43 @@ public:
 class Esp32BaseWeb {
 public:
     using Handler = void (*)();
+    enum HomeMode : uint8_t {
+        HOME_ESP32BASE,
+        HOME_APP,
+        HOME_COMBINED
+    };
+    enum SystemNavMode : uint8_t {
+        SYSTEM_NAV_TOP,
+        SYSTEM_NAV_BOTTOM,
+        SYSTEM_NAV_SECTION
+    };
+    enum BuiltinPage : uint8_t {
+        BUILTIN_HOME,
+        BUILTIN_WIFI,
+        BUILTIN_OTA,
+        BUILTIN_LOGS,
+        BUILTIN_REBOOT,
+        BUILTIN_SYSTEM,
+        BUILTIN_AUTH
+    };
+
+    static void setDefaultAuth(const char* user, const char* pass);
+    static const char* authUser();
+    static bool isAuthEnabled();
+    static void setAuthEnabled(bool enabled);
     static bool checkAuth();
-    static void setAuth(const char* user, const char* pass);
+    static bool verifyAuth();
+    static bool verifyAuth(const char* user, const char* pass);
+    static bool saveAuth(const char* user, const char* pass);
+    static bool resetAuth();
     static bool addPage(const char* path, const char* title, Handler handler);
     static bool addApi(const char* path, Handler handler);
+    static bool addNavItem(const char* path, const char* title);
+    static bool setDeviceName(const char* name);
+    static bool setHomePath(const char* path);
+    static void setHomeMode(HomeMode mode);
+    static void setSystemNavMode(SystemNavMode mode);
+    static bool setBuiltinLabel(BuiltinPage page, const char* label);
     static bool hasParam(const char* name);
     static bool getParam(const char* name, char* out, size_t len);
     static void sendHeader(const char* title = nullptr);

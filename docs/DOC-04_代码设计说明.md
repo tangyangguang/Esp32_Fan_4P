@@ -20,7 +20,6 @@
 | `blk_ms` | int | 1500 | 堵转检测 ms，100-5000 |
 | `slp_s` | int | 60 | 停止后进入 power save 的等待秒数 |
 | `restore` | bool | true | 上电恢复策略 |
-| `web_pass` | string | `admin123` | Web Basic Auth 密码 |
 | `last_spd` | int | 0 | 上次速度 |
 | `last_tim` | int | 0 | 上次剩余定时秒数 |
 | `run_s` | int | 0 | 累计运行秒数 |
@@ -28,7 +27,7 @@
 | `ir_l0..5` | int | 0 | 红外码低 32 位 |
 | `ir_h0..5` | int | 0 | 红外码高 32 位 |
 
-应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。
+应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin123")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
 
 ## 2. 运行状态
 
@@ -83,8 +82,8 @@
 页面：
 
 - `GET /fan`：状态和控制。
-- `GET /config`：参数配置、Web 密码、红外学习入口。
-- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Reboot，并通过 `addPage(path, title, handler)` 展示业务入口。
+- `GET /config`：参数配置和红外学习入口。
+- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Auth、Reboot，并通过 `addPage(path, title, handler)` 展示业务入口。
 
 API：
 
@@ -177,6 +176,7 @@ API：
 - `pio run -e esp32dev` 通过。
 - `pio test -e native` 通过，7 个测试用例成功。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
+- 设备当前持久化 Auth 用户为 `root`，实测 `root/admin` 可访问业务页和基础库页。
 - AP 配网后设备 IP 为 `192.168.2.112`，`esp32-fan.local` 可解析。
 - `http://192.168.2.112/api/status` 返回风扇状态、IP、RSSI、NTP 时间。
 - `http://192.168.2.112/fan` 和 `http://192.168.2.112/config` 页面可完整返回。
@@ -184,6 +184,7 @@ API：
 - `http://192.168.2.112/esp32base/api/status` 返回 Esp32Base Full profile、heap、flash、WiFi connected 状态。
 - `http://192.168.2.112/esp32base/logs` 和 `http://192.168.2.112/esp32base/ota` 页面 GET 返回 HTTP 200。
 - `POST http://192.168.2.112/esp32base/ota` 上传当前 `firmware.bin` 返回 `{"ok":true}`，重启后基础库和业务页面/API 恢复正常。
+- `http://192.168.2.112/esp32base/auth` 页面 GET 返回 HTTP 200。
 - 临时设置 `sleep_wait=3` 后设备进入 `sleep` 状态，`/api/status` 仍可访问；验证后已恢复 `sleep_wait=60`。
 - `/fan` 和 `/config` 通过 `Esp32BaseWeb::addPage(path, title, handler)` 注册为业务入口，`/esp32base` 首页和内置顶栏已展示 Fan、Settings。
 - 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出。

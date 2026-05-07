@@ -19,7 +19,6 @@ const char* KEY_SOFT_STOP = "soft_off";
 const char* KEY_BLOCK_DETECT = "blk_ms";
 const char* KEY_SLEEP_WAIT = "slp_s";
 const char* KEY_AUTO_RESTORE = "restore";
-const char* KEY_WEB_PASSWORD = "web_pass";
 const char* KEY_LAST_SPEED = "last_spd";
 const char* KEY_LAST_TIMER = "last_tim";
 const char* KEY_RUN_DURATION = "run_s";
@@ -34,10 +33,6 @@ bool cfgSetInt(const char* key, int32_t value) { return Esp32BaseConfig::setInt(
 int32_t cfgGetInt(const char* key, int32_t def) { return Esp32BaseConfig::getInt(CFG_NS, key, def); }
 bool cfgSetBool(const char* key, bool value) { return Esp32BaseConfig::setBool(CFG_NS, key, value); }
 bool cfgGetBool(const char* key, bool def) { return Esp32BaseConfig::getBool(CFG_NS, key, def); }
-bool cfgSetStr(const char* key, const char* value) { return Esp32BaseConfig::setStr(CFG_NS, key, value); }
-bool cfgGetStr(const char* key, char* out, size_t len, const char* def) {
-    return Esp32BaseConfig::getStr(CFG_NS, key, out, len, def);
-}
 bool cfgSetIntDeferred(const char* key, int32_t value) {
     return Esp32BaseConfig::setIntDeferred(CFG_NS, key, value);
 }
@@ -161,12 +156,6 @@ bool FanController::getAutoRestore() const { return _auto_restore; }
 void FanController::setAutoRestore(bool enable) {
     _auto_restore = enable;
     cfgSetBool(KEY_AUTO_RESTORE, _auto_restore);
-}
-
-void FanController::setWebPassword(const char* password) {
-    cfgSetStr(KEY_WEB_PASSWORD, password);
-    Esp32BaseWeb::setAuth("admin", password);
-    ESP32BASE_LOG_I("FanCtrl", "Web password updated");
 }
 
 void FanController::attemptBlockRecovery() {
@@ -534,12 +523,6 @@ void FanController::_loadConfig() {
 
     _run_duration = static_cast<uint32_t>(
         cfgGetInt(KEY_RUN_DURATION, 0));
-
-    char web_password[32];
-    if (cfgGetStr(KEY_WEB_PASSWORD, web_password, sizeof(web_password), "") &&
-        web_password[0] != '\0') {
-        Esp32BaseWeb::setAuth("admin", web_password);
-    }
 
     // Load IR codes
     char key[8];

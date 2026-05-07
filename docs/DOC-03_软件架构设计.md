@@ -67,7 +67,7 @@ Infrastructure
 | Esp32Base 模块 | 本项目用途 |
 | --- | --- |
 | `Esp32BaseLog` | 串口日志、统一日志宏 |
-| `Esp32BaseConfig` | NVS 配置、运行状态持久化、Web 密码 |
+| `Esp32BaseConfig` | NVS 配置、运行状态持久化 |
 | `Esp32BaseSystem` | 系统资源和芯片信息 |
 | `Esp32BaseBus` | 后续订阅 WiFi/Web 等基础事件 |
 | `Esp32BaseWatchdog` | 主循环看门狗 |
@@ -107,8 +107,8 @@ Infrastructure
 ## 6. 初始化顺序
 
 1. 设置固件信息和 hostname。
-2. 读取 Web 密码并调用 `Esp32BaseWeb::setAuth()`。
-3. 注册 `/fan`、`/config` 和 `/api/*` 路由。
+2. 调用 `Esp32BaseWeb::setDefaultAuth("admin", "admin123")`，并设置设备名、业务首页和系统导航模式。
+3. 注册 `/fan`、`/config` 和 `/api/*` 路由；`/fan`、`/config` 通过 `addPage(path, title, handler)` 进入基础库导航。
 4. 调用 `Esp32Base::begin()`。
 5. 启用文件日志和配置审计。
 6. 初始化风扇控制器。
@@ -142,7 +142,7 @@ build_flags =
 | 风险 | 影响 | 处理 |
 | --- | --- | --- |
 | Full profile framework 依赖未被 LDF 自动发现 | 链接缺少 WiFi/WebServer 等符号 | 按 Esp32Base 示例显式声明 `lib_deps` 并加入 `deps_esp32base_full.cpp` |
-| Web 密码来自 NVS，但 Auth 需在 Web/OTA 注册前设置 | OTA route 可能不注册 | 在 `Esp32Base::begin()` 前读取应用密码并调用 `Esp32BaseWeb::setAuth()`；若流程不优雅，反馈基础库 |
+| Web Auth 职责混入应用配置 | 重复实现密码持久化和修改页面 | 使用 Esp32Base 内置 Auth；应用只设置默认账号密码，修改入口使用 `/esp32base/auth` |
 | Web 路由容量不足 | 自定义 API 注册失败 | 当前 `ESP32BASE_WEB_MAX_ROUTES=16`；若仍不足，反馈基础库或调整 API 聚合 |
 | WiFi power save 不等同于 ESP8266 modem sleep | 省电和响应表现需实测 | 实机验证 Web 可访问性和响应时间 |
 | IRremoteESP8266 在 ESP32 下资源占用较高 | RAM/实时性风险 | 先沿用成熟库，实测后再决定是否替换 |

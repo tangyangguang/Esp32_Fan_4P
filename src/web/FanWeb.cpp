@@ -164,7 +164,7 @@ void FanWeb::handleStatusPage() {
 
 // Config Page HTML parts
 static const char CONFIG_PAGE_TOP[] PROGMEM = 
-    "<div class=top><div><h2>Settings</h2><div class=muted>Fan, access, IR</div></div><a class='btn secondary' href='/fan'>Fan</a></div>"
+    "<div class=top><div><h2>Settings</h2><div class=muted>Fan behavior and IR</div></div><a class='btn secondary' href='/fan'>Fan</a></div>"
     "<form class=panel onsubmit='saveCfg(this);return false'>"
     "<h3>Fan behavior</h3><div class=formgrid><div class=field><label>Min speed (%)</label><input type=number name=min_speed min=0 max=50 value='";
 static const char CONFIG_MIN_END[] PROGMEM = "'><div class=help>Low commands rise to this value.</div></div>"
@@ -179,17 +179,17 @@ static const char CONFIG_BLOCK_END[] PROGMEM = "'><div class=help>No RPM for thi
     "<div class=field><label>Power-on restore</label><select name=auto_restore><option value=1 ";
 static const char CONFIG_AUTO_END[] PROGMEM = ">Enabled</option><option value=0 ";
 static const char CONFIG_AUTO_END2[] PROGMEM = ">Disabled</option></select><div class=help>Restore last speed and timer after reboot.</div></div></div>"
-    "<h3>Web access</h3><label>Admin password</label><div class=row><input type=password name=password maxlength=23 placeholder='Keep current'>"
-    "<button id=saveBtn type=submit>Save</button></div><div class=help>User is admin. Blank keeps the old password.</div><span id=saveMsg class='savebar muted'>Ready</span></form>"
+    "<div class=actions><button id=saveBtn type=submit>Save</button><a class='btn secondary' href='/esp32base/auth'>Auth</a></div>"
+    "<span id=saveMsg class='savebar muted'>Ready</span></form>"
     "<div class=panel><h3>IR learning</h3><div class='chips chips3'>"
     "<button onclick='learn(0,\"Speed Up\")'>Speed Up</button><button onclick='learn(1,\"Speed Down\")'>Speed Down</button><button onclick='learn(2,\"Stop\")'>Stop</button>"
     "<button onclick='learn(3,\"30 min\")'>30 min</button><button onclick='learn(4,\"1 h\")'>1 h</button><button onclick='learn(5,\"2 h\")'>2 h</button>"
     "</div><div class=help>Press one, then point the remote within 10 seconds.</div></div>"
     "<div class=nav2><a class=btn href='/fan'>Fan</a><a class=btn href='/esp32base'>Base</a>"
-    "<a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
+    "<a class=btn href='/esp32base/auth'>Auth</a><a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
     "<script>"
     "function setMsg(t,c){var m=document.getElementById('saveMsg');m.textContent=t;m.className='savebar '+c}"
-    "function applyCfg(d,f){if(!d)return;f.min_speed.value=d.min_effective_speed;f.sleep_wait.value=d.sleep_wait;f.soft_start.value=d.soft_start;f.soft_stop.value=d.soft_stop;f.block_detect.value=d.block_detect;f.auto_restore.value=d.auto_restore?1:0;f.password.value=''}"
+    "function applyCfg(d,f){if(!d)return;f.min_speed.value=d.min_effective_speed;f.sleep_wait.value=d.sleep_wait;f.soft_start.value=d.soft_start;f.soft_stop.value=d.soft_stop;f.block_detect.value=d.block_detect;f.auto_restore.value=d.auto_restore?1:0}"
     "function saveCfg(f){var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='Saving';setMsg('Saving...','muted');fetch('/api/config',{method:'POST',body:new URLSearchParams(new FormData(f))}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Save';if(x.ok&&x.j.ok){applyCfg(x.j.data,f);var n=x.j.changed||0;setMsg('Saved - '+(n?n+' changed':'no changes')+' - '+new Date().toLocaleTimeString(),'oktxt')}else{setMsg('Save failed','errtxt')}}).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('Save failed: network error','errtxt')})}"
     "function learn(i,n){fetch('/api/ir/learn',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key_index='+i}).then(r=>r.json()).then(d=>alert(d.ok?'Learning '+n:'Learn failed'))}"
     "</script>";
@@ -345,8 +345,7 @@ void FanWeb::handleApiConfig() {
                        Esp32BaseWeb::hasParam("soft_stop") ||
                        Esp32BaseWeb::hasParam("block_detect") ||
                        Esp32BaseWeb::hasParam("sleep_wait") ||
-                       Esp32BaseWeb::hasParam("auto_restore") ||
-                       Esp32BaseWeb::hasParam("password");
+                       Esp32BaseWeb::hasParam("auto_restore");
 
     if (hasAnyParam) {
         ESP32BASE_LOG_I("FanWeb", "user_action save_config");
@@ -397,13 +396,6 @@ void FanWeb::handleApiConfig() {
             bool old = _controller->getAutoRestore();
             if (v != old) {
                 _controller->setAutoRestore(v);
-                changed++;
-            }
-        }
-        if (Esp32BaseWeb::getParam("password", value, sizeof(value))) {
-            if (value[0] != '\0') {
-                _controller->setWebPassword(value);
-                ESP32BASE_LOG_I("FanWeb", "config_password_updated");
                 changed++;
             }
         }

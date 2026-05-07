@@ -62,7 +62,9 @@ StrEntry g_strs[12] = {};
 bool g_configReady = false;
 bool g_wifiConnected = true;
 bool g_wifiPowerSave = false;
-char g_authPass[32] = "";
+char g_authUser[32] = "admin";
+char g_authPass[32] = "admin";
+bool g_authEnabled = true;
 
 struct WebParam {
     char name[32];
@@ -217,17 +219,36 @@ const char* Esp32BaseWiFi::stateName() { return "CONNECTED"; }
 bool Esp32BaseNtp::isTimeSynced() { return true; }
 bool Esp32BaseNtp::formatTime(char* out, size_t len, const char*) {
     if (!out || len == 0) return false;
-    strncpy(out, "12:00:00", len - 1);
+    strncpy(out, "2026-05-07 12:00:00", len - 1);
     out[len - 1] = '\0';
     return true;
 }
 
 bool Esp32BaseWeb::checkAuth() { return true; }
-void Esp32BaseWeb::setAuth(const char*, const char* pass) {
+void Esp32BaseWeb::setDefaultAuth(const char* user, const char* pass) {
+    strncpy(g_authUser, user ? user : "", sizeof(g_authUser) - 1);
     strncpy(g_authPass, pass ? pass : "", sizeof(g_authPass) - 1);
 }
+const char* Esp32BaseWeb::authUser() { return g_authUser; }
+bool Esp32BaseWeb::isAuthEnabled() { return g_authEnabled; }
+void Esp32BaseWeb::setAuthEnabled(bool enabled) { g_authEnabled = enabled; }
+bool Esp32BaseWeb::verifyAuth() { return true; }
+bool Esp32BaseWeb::verifyAuth(const char* user, const char* pass) {
+    return strcmp(g_authUser, user ? user : "") == 0 && strcmp(g_authPass, pass ? pass : "") == 0;
+}
+bool Esp32BaseWeb::saveAuth(const char* user, const char* pass) {
+    setDefaultAuth(user, pass);
+    return true;
+}
+bool Esp32BaseWeb::resetAuth() { return true; }
 bool Esp32BaseWeb::addPage(const char*, const char*, Handler) { return true; }
 bool Esp32BaseWeb::addApi(const char*, Handler) { return true; }
+bool Esp32BaseWeb::addNavItem(const char*, const char*) { return true; }
+bool Esp32BaseWeb::setDeviceName(const char*) { return true; }
+bool Esp32BaseWeb::setHomePath(const char*) { return true; }
+void Esp32BaseWeb::setHomeMode(HomeMode) {}
+void Esp32BaseWeb::setSystemNavMode(SystemNavMode) {}
+bool Esp32BaseWeb::setBuiltinLabel(BuiltinPage, const char*) { return true; }
 bool Esp32BaseWeb::hasParam(const char* name) {
     for (uint8_t i = 0; i < g_paramCount; ++i) {
         if (strcmp(g_params[i].name, name) == 0) return true;
@@ -277,7 +298,9 @@ void setUp() {
     g_configReady = false;
     g_wifiConnected = true;
     g_wifiPowerSave = false;
-    g_authPass[0] = '\0';
+    strcpy(g_authUser, "admin");
+    strcpy(g_authPass, "admin");
+    g_authEnabled = true;
     webReset();
 }
 
@@ -431,11 +454,10 @@ void test_web_api_speed_timer_config_and_ir() {
 
     webReset();
     webSetParam("min_speed", "22");
-    webSetParam("password", "newpass");
     FanWeb::handleApiConfig();
     TEST_ASSERT_EQUAL(200, g_lastCode);
     TEST_ASSERT_EQUAL(22, controller.getMinEffectiveSpeed());
-    TEST_ASSERT_EQUAL_STRING("newpass", g_authPass);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"changed\":1"));
 
     webReset();
     webSetParam("key_index", "2");

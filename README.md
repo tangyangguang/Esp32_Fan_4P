@@ -81,6 +81,8 @@ pio device monitor -e esp32dev
 - 已通过 `/esp32base/ota` 上传同版本固件，OTA 后基础库状态、业务 API、`/fan` 和日志页恢复正常。
 - 已临时设置 `sleep_wait=3` 验证 WiFi power save，设备进入 `sleep` 后 `/api/status` 仍可访问；验证后已恢复 `sleep_wait=60`。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
+- Web Auth 已迁移到 Esp32Base 内置持久化能力；本项目设置默认 `admin/admin123`，账号密码修改入口为 `/esp32base/auth`。
+- 串口烧录新固件后，设备当前持久化 Auth 用户为 `root`，实测 `root/admin` 可访问业务页和基础库页。
 - 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出。
 - `esp32-fan.local` 首次 curl 访问约有 5 秒解析等待；直接 IP 访问业务状态接口约 0.36 秒，判断为客户端侧 mDNS 解析延迟，不是 Web handler 阻塞。
 

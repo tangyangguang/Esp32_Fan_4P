@@ -11,11 +11,12 @@
 ## 已完成基础库反馈记录
 
 - Esp32Base Web 已支持业务入口最终 API：`Esp32BaseWeb::addPage(path, title, handler)`。本项目使用 `/fan -> Fan`、`/config -> Settings` 显式注册业务入口。
+- Esp32Base Web 已支持内置持久化 Auth、`/esp32base/auth`、业务优先首页和系统导航配置。本项目已删除应用侧 `fan/web_pass`，改为设置默认 `admin/admin123` 并使用基础库 Auth 页面修改凭据。
 - Esp32Base Health 已调整：普通 tick 使用 DEBUG，`ESP32BASE_HEALTH_LOOP_WARN_MS` 默认 3000ms，超过阈值才输出 WARN `health loop_slow ...`。
 
 ## 设计记录：Config 读取审计输出明文值是调试设计
 
-`Esp32BaseConfig::enableConfigReadAudit(true)` 会让 `getStr()` 日志输出配置明文值，包括 `eb_wifi/pass`、`fan/web_pass` 等字段。这是为了成熟项目调试和现场观察保留的设计行为，不是 bug，本项目不得关闭读取审计，也不得要求基础库默认脱敏。
+`Esp32BaseConfig::enableConfigReadAudit(true)` 会让 `getStr()` 日志输出配置明文值，包括 `eb_wifi/pass` 等字段。这是为了成熟项目调试和现场观察保留的设计行为，不是 bug，本项目不得关闭读取审计，也不得要求基础库默认脱敏。
 
 本项目要求：
 

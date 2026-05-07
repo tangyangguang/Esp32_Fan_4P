@@ -33,7 +33,8 @@
 | F-13 | 软启动/软停止 | 默认 1 秒，范围 0-10 秒可配置 | 本项目 FanDriver/FanController |
 | F-14 | 低功耗策略 | 风扇停止且空闲达到配置值后启用 WiFi power save，保持 Web 可访问 | 本项目策略 + Esp32BaseWiFi |
 | F-15 | mDNS | 使用 `esp32-fan.local` 或后续动态 hostname 访问 | Esp32Base mDNS |
-| F-16 | 配置页面 | Web 修改风扇参数、恢复策略、Web 密码、红外学习 | 本项目 FanWeb + Esp32BaseConfig |
+| F-16 | 配置页面 | Web 修改风扇参数、恢复策略、红外学习 | 本项目 FanWeb + Esp32BaseConfig |
+| F-17 | Web Auth | 通过 Esp32Base 内置页面修改账号密码 | Esp32Base `/esp32base/auth` |
 | F-17 | BOOT 清 WiFi | GPIO0 长按 1 秒清除 WiFi 凭证并重启 | main + Esp32BaseWiFi |
 | F-18 | LED 指示 | 档位亮度、WiFi 慢闪、故障快闪、操作闪烁 | 本项目 LedIndicator |
 | F-19 | 看门狗 | 主循环正常喂狗，长时间卡死可恢复 | Esp32Base Watchdog |
