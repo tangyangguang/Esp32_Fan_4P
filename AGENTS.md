@@ -37,7 +37,7 @@
 - 业务页必须调用 `Esp32BaseWeb::checkAuth()`。
 - 业务页只能使用 Esp32BaseWeb 公开 API，不直接依赖底层 `WebServer`。
 - 业务页不主动放置 `/esp32base/auth` 修改密码入口；Auth 入口由 Esp32Base 系统导航提供。
-- 页面导航必须能从 Esp32Base 首页或顶栏到达业务页，也必须能从业务页回到基础库管理页。
+- 业务页不自建业务入口或 Esp32Base 系统页面导航；业务入口由基础库顶部导航提供，系统入口由基础库页脚导航提供。
 - Clock 显示应保持完整日期时间，API 返回格式为 `YYYY-MM-DD HH:MM:SS`。
 - 堵转状态合并到 State 显示；正常显示 Idle/Running/Sleep/Error，堵转时显示 Blocked。
 

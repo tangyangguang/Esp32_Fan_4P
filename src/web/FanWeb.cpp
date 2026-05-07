@@ -30,10 +30,10 @@ static const char APP_STYLE[] PROGMEM =
     ".formgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.field{min-width:0}label{display:block;font-size:.78em;color:#344054;margin:0 0 3px}"
     "input,select{width:100%;min-height:38px;box-sizing:border-box;border:1px solid #c8d0da;border-radius:6px;padding:8px;background:#fff;font-size:1em;margin:0}"
     ".row input:not([type=submit]){height:42px;min-height:42px;margin:0!important;padding:0 10px;display:block}.row button{height:42px;min-height:42px;padding:0 7px;align-self:center}"
-    ".oktxt{color:#087443}.errtxt{color:#b42318}.help{color:#667085;font-size:.76em;margin:3px 0 0;line-height:1.3}.nav2{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}"
+    ".oktxt{color:#087443}.errtxt{color:#b42318}.help{color:#667085;font-size:.76em;margin:3px 0 0;line-height:1.3}"
     ".savebar{display:block;margin-top:8px;padding:7px 8px;border-radius:6px;background:#f7f9fb;border:1px solid #edf1f5;font-size:.82em}.savebar.oktxt{background:#ecfdf3;border-color:#abefc6}.savebar.errtxt{background:#fef3f2;border-color:#fecdca}"
     "pre.log{white-space:pre-wrap;word-break:break-word;background:#111827;color:#e5e7eb;border-radius:7px;padding:9px;max-height:430px;overflow:auto;font-size:.82em}"
-    "@media(max-width:390px){body{padding:8px}.chips{grid-template-columns:repeat(3,1fr)}.chips3{grid-template-columns:repeat(3,1fr)}.formgrid{grid-template-columns:1fr}.nav2{grid-template-columns:1fr 1fr}.speed{font-size:1.9em}}"
+    "@media(max-width:390px){body{padding:8px}.chips{grid-template-columns:repeat(3,1fr)}.chips3{grid-template-columns:repeat(3,1fr)}.formgrid{grid-template-columns:1fr}.speed{font-size:1.9em}}"
     "</style>";
 
 static const char FAN_PAGE_TOP[] PROGMEM =
@@ -53,8 +53,6 @@ static const char FAN_TIMER_INPUT_END[] PROGMEM =
     "'><button onclick='tm(document.getElementById(\"tv\").value)'>Set</button></div>"
     "<div class=actions><button class=secondary onclick='tm(0)'>Cancel timer</button><button class=danger onclick='stopFan()'>Stop fan</button></div>"
     "<div class=help>Cancel timer keeps the fan running. Stop fan turns the fan off and clears the timer.</div></div>"
-    "<div class=nav2><a class=btn href='/config'>Settings</a><a class=btn href='/esp32base'>Base</a>"
-    "<a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
     "<script>"
     "var rem=";
 static const char FAN_SCRIPT_TIMER_MID[] PROGMEM =
@@ -164,7 +162,7 @@ void FanWeb::handleStatusPage() {
 
 // Config Page HTML parts
 static const char CONFIG_PAGE_TOP[] PROGMEM = 
-    "<div class=top><div><h2>Settings</h2><div class=muted>Fan behavior and IR</div></div><a class='btn secondary' href='/fan'>Fan</a></div>"
+    "<div class=top><div><h2>Settings</h2><div class=muted>Fan behavior and IR</div></div></div>"
     "<form class=panel onsubmit='saveCfg(this);return false'>"
     "<h3>Fan behavior</h3><div class=formgrid><div class=field><label>Min speed (%)</label><input type=number name=min_speed min=0 max=50 value='";
 static const char CONFIG_MIN_END[] PROGMEM = "'><div class=help>Low commands rise to this value.</div></div>"
@@ -185,8 +183,6 @@ static const char CONFIG_AUTO_END2[] PROGMEM = ">Disabled</option></select><div 
     "<button onclick='learn(0,\"Speed Up\")'>Speed Up</button><button onclick='learn(1,\"Speed Down\")'>Speed Down</button><button onclick='learn(2,\"Stop\")'>Stop</button>"
     "<button onclick='learn(3,\"30 min\")'>30 min</button><button onclick='learn(4,\"1 h\")'>1 h</button><button onclick='learn(5,\"2 h\")'>2 h</button>"
     "</div><div class=help>Press one, then point the remote within 10 seconds.</div></div>"
-    "<div class=nav2><a class=btn href='/fan'>Fan</a><a class=btn href='/esp32base'>Base</a>"
-    "<a class=btn href='/esp32base/logs'>Logs</a><a class=btn href='/esp32base/ota'>OTA</a><a class=btn href='/esp32base/reboot'>Reboot</a></div>"
     "<script>"
     "function setMsg(t,c){var m=document.getElementById('saveMsg');m.textContent=t;m.className='savebar '+c}"
     "function applyCfg(d,f){if(!d)return;f.min_speed.value=d.min_effective_speed;f.sleep_wait.value=d.sleep_wait;f.soft_start.value=d.soft_start;f.soft_stop.value=d.soft_stop;f.block_detect.value=d.block_detect;f.auto_restore.value=d.auto_restore?1:0}"

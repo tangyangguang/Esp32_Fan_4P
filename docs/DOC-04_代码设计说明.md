@@ -102,6 +102,7 @@ API：
 
 - 所有页面和 API 都调用 `Esp32BaseWeb::checkAuth()`。
 - 业务页面不显式放置 `/esp32base/auth` 修改密码入口；该入口由 Esp32Base 系统导航提供。
+- 业务页面不自建业务入口或 Esp32Base 系统页面导航；顶部业务入口和底部系统入口统一由 Esp32Base 输出。
 - JSON 输出优先使用固定缓冲区。
 - HTML 页面优先 `sendChunk()`，避免大 `String` 拼接。
 - 用户输入进入 JSON/HTML 前要转义；当前短字段先用数值输入，后续补全字符串转义。
