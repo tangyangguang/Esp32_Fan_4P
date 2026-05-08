@@ -27,7 +27,9 @@
 - 不在本项目保留临时 `/app` 应用入口页；业务入口由 Esp32Base 首页和内置顶栏展示。
 - Web Auth 使用 Esp32Base 内置持久化能力，本项目只设置默认 `Esp32BaseWeb::setDefaultAuth("admin", "admin123")`。
 - 本项目不保存 `fan/web_pass`，不维护应用侧密码修改逻辑；账号密码修改统一使用 `/esp32base/auth`。
-- Esp32Base Health 普通 tick 日志应是 DEBUG；超过 `ESP32BASE_HEALTH_LOOP_WARN_MS` 才 WARN。
+- Web Auth 持久化使用 `eb_web.auth_user` / `eb_web.auth_pass` 明文；INFO 日志输出 WiFi 和 Web Auth 明文凭据是调试设计。
+- Esp32Base Health 普通 tick 日志应是 DEBUG，默认 30 分钟最多一次；超过 `ESP32BASE_HEALTH_LOOP_WARN_MS` 才 WARN。
+- NTP 未同步状态不应周期性输出 `ntp_sync_pending` WARN。
 - 日志中历史残留的旧 INFO health tick 不代表新固件仍有问题，要区分历史段和新启动后的日志。
 
 ## 5. Web 和 API 规范
