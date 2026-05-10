@@ -1,7 +1,7 @@
 #include "fan/FanDriver.h"
 
 #include <Arduino.h>
-#include <Esp32BaseLog.h>
+#include <Esp32Base.h>
 
 #ifndef ESP32_FAN_PWM_FREQ
 #define ESP32_FAN_PWM_FREQ 25000
@@ -16,9 +16,7 @@ const uint8_t PWM_CHANNEL = 0;
 const uint32_t PWM_MAX_DUTY = (1UL << ESP32_FAN_PWM_RESOLUTION) - 1UL;
 
 uint32_t speedToDuty(uint8_t speed) {
-    if (speed > 100) {
-        speed = 100;
-    }
+    if (speed > 100) speed = 100;
     return (static_cast<uint32_t>(speed) * PWM_MAX_DUTY) / 100UL;
 }
 }
@@ -33,6 +31,7 @@ FanDriver::FanDriver(uint8_t pwm_pin, uint8_t tach_pin)
     , _soft_start_time(1000)
     , _soft_stop_time(1000)
     , _block_detect_time(1500)
+    , _min_effective_speed(10)
     , _soft_start_tick(0)
     , _block_start_tick(0)
     , _state(FAN_STATE_IDLE)
@@ -70,7 +69,7 @@ bool FanDriver::begin() {
 
 void FanDriver::_writePwm(uint8_t speed) {
 #ifdef UNIT_TEST
-    analogWrite(_pwm_pin, speedToDuty(speed));
+    analogWrite(_pwm_pin, static_cast<uint8_t>(speedToDuty(speed)));
 #elif defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
     ledcWrite(_pwm_pin, speedToDuty(speed));
 #else
@@ -84,14 +83,17 @@ void FanDriver::tick() {
     // Update RPM (calculate every 500ms)
     if (now - _last_rpm_update_ms >= 500) {
         uint32_t elapsed = now - _last_tach_ms;
-        if (elapsed > 0 && _tach_count > 0) {
+        noInterrupts();
+        uint32_t tach_count = _tach_count;
+        _tach_count = 0;
+        interrupts();
+        if (elapsed > 0 && tach_count > 0) {
             // RPM = (pulses / 2) * (60000 / elapsed_ms)
             // Assuming 2 pulses per revolution for typical 4-wire fans
-            _rpm = static_cast<uint16_t>((_tach_count * 30000UL) / elapsed);
+            _rpm = static_cast<uint16_t>((tach_count * 30000UL) / elapsed);
         } else {
             _rpm = 0;
         }
-        _tach_count = 0;
         _last_tach_ms = now;
         _last_rpm_update_ms = now;
     }
@@ -102,8 +104,10 @@ void FanDriver::tick() {
         if (_soft_start_time > 0 && elapsed < _soft_start_time) {
             uint32_t progress = (elapsed * 100) / _soft_start_time;
             uint8_t gradient_speed = static_cast<uint8_t>((_target_speed * progress) / 100);
-            if (gradient_speed < 10 && _target_speed >= 10) {
-                gradient_speed = 10;  // Minimum effective speed
+            if (_min_effective_speed > 0 &&
+                gradient_speed < _min_effective_speed &&
+                _target_speed >= _min_effective_speed) {
+                gradient_speed = _min_effective_speed;
             }
             _writePwm(gradient_speed);
             _current_speed = gradient_speed;
@@ -111,6 +115,7 @@ void FanDriver::tick() {
             _current_speed = _target_speed;
             _writePwm(_current_speed);
             _state = FAN_STATE_RUNNING;
+            _block_start_tick = 0;
             ESP32BASE_LOG_I("FanDrv", "Soft start complete: %d%%", _current_speed);
         }
     } else if (_state == FAN_STATE_SOFT_STOP) {
@@ -129,7 +134,8 @@ void FanDriver::tick() {
     }
 
     // Block detection
-    if (_state == FAN_STATE_RUNNING && _current_speed >= 10) {
+    uint8_t block_threshold = _min_effective_speed > 0 ? _min_effective_speed : 1;
+    if (_state == FAN_STATE_RUNNING && _current_speed >= block_threshold) {
         if (_rpm == 0) {
             // Only start counting if we haven't already started
             if (_block_start_tick == 0) {
@@ -171,6 +177,7 @@ bool FanDriver::setSpeed(uint8_t speed) {
             ESP32BASE_LOG_I("FanDrv", "Stop immediate");
         }
     } else {
+        _block_start_tick = 0;
         if (_current_speed == 0 && _soft_start_time > 0) {
             _state = FAN_STATE_SOFT_START;
             _soft_start_tick = now;
@@ -180,6 +187,7 @@ bool FanDriver::setSpeed(uint8_t speed) {
             _current_speed = speed;
             _writePwm(speed);
             _state = FAN_STATE_RUNNING;
+            _block_start_tick = 0;
             ESP32BASE_LOG_I("FanDrv", "Speed set: %d%%", speed);
         }
     }
@@ -209,6 +217,11 @@ void FanDriver::setSoftStopTime(uint16_t ms) {
 
 void FanDriver::setBlockDetectTime(uint16_t ms) {
     _block_detect_time = ms;
+}
+
+void FanDriver::setMinEffectiveSpeed(uint8_t speed) {
+    if (speed > 50) speed = 50;
+    _min_effective_speed = speed;
 }
 
 bool FanDriver::isBlocked() const {

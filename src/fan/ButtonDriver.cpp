@@ -1,7 +1,11 @@
 #include "fan/ButtonDriver.h"
 
 #include <Arduino.h>
-#include <Esp32BaseLog.h>
+#ifdef UNIT_TEST
+#include "Esp32Base.h"
+#else
+#include <Esp32Base.h>
+#endif
 
 ButtonDriver::ButtonDriver(uint8_t accel_pin, uint8_t decel_pin)
     : _accel_pin(accel_pin)
@@ -118,7 +122,9 @@ ButtonEvent ButtonDriver::getEvent() {
         }
     }
 
-    // Reset long press trigger when both released
+    // After the destructive both-button action, require a full release before
+    // accepting any new short press. This avoids accidental events while the
+    // user is still unwinding the long-press gesture.
     if (!_accel_pressed && !_decel_pressed) {
         _both_long_triggered = false;
     }

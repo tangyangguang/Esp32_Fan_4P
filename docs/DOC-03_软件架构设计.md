@@ -10,7 +10,7 @@
 
 ## 1. 架构目标
 
-本项目迁移成熟 ESP8266 风扇控制逻辑到 ESP32，并以真实业务验证 Esp32Base Full profile。业务代码只处理风扇领域逻辑；配置、日志、网络、Web、OTA、诊断等基础能力由 Esp32Base 提供。
+本项目迁移成熟 ESP12F_Fan_4P 风扇控制逻辑到 ESP32，并以真实业务验证 Esp32Base Full profile。业务代码只处理风扇领域逻辑；配置、日志、网络、Web、OTA、诊断等基础能力由 Esp32Base 提供。
 
 ```text
 Application
@@ -71,7 +71,7 @@ Infrastructure
 | `Esp32BaseSystem` | 系统资源和芯片信息 |
 | `Esp32BaseBus` | 后续订阅 WiFi/Web 等基础事件 |
 | `Esp32BaseWatchdog` | 主循环看门狗 |
-| `Esp32BaseSleep` | 验证基础 Sleep 能力；本项目默认不 deep sleep |
+| `Esp32BaseWiFi::setPowerSave` | 停止后进入 WiFi power save，替代 ESP8266 modem sleep |
 | `Esp32BaseFs` | LittleFS 挂载 |
 | `Esp32BaseFileLog` | `/logs/app.log` 滚动日志 |
 | `Esp32BaseHealth` | 健康诊断 |

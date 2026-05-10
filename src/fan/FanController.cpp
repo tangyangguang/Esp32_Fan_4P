@@ -5,8 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 #include "Arduino.h"
-#include <Esp32Base.h>
+#include "Esp32Base.h"
 #else
+#include <stdlib.h>
+#include <string.h>
 #include <Arduino.h>
 #include <Esp32Base.h>
 #endif
@@ -19,22 +21,58 @@ const char* KEY_SOFT_STOP = "soft_off";
 const char* KEY_BLOCK_DETECT = "blk_ms";
 const char* KEY_SLEEP_WAIT = "slp_s";
 const char* KEY_AUTO_RESTORE = "restore";
+const char* KEY_LED_FLASH_MS = "led_ms";
+const char* KEY_RUNTIME_SAVE_MIN = "rt_save_m";
 const char* KEY_LAST_SPEED = "last_spd";
 const char* KEY_LAST_TIMER = "last_tim";
 const char* KEY_RUN_DURATION = "run_s";
-const char* KEY_IR_PROTO = "ir_p";
-const char* KEY_IR_CODE_LOW = "ir_l";
-const char* KEY_IR_CODE_HIGH = "ir_h";
+const char* KEY_IR_ENTRY = "ir_";
 
 // Gear to speed mapping
 const uint8_t GEAR_SPEED[5] = {0, 25, 50, 75, 100};
 
-bool cfgSetInt(const char* key, int32_t value) { return Esp32BaseConfig::setInt(CFG_NS, key, value); }
-int32_t cfgGetInt(const char* key, int32_t def) { return Esp32BaseConfig::getInt(CFG_NS, key, def); }
-bool cfgSetBool(const char* key, bool value) { return Esp32BaseConfig::setBool(CFG_NS, key, value); }
-bool cfgGetBool(const char* key, bool def) { return Esp32BaseConfig::getBool(CFG_NS, key, def); }
+bool cfgSetStr(const char* key, const char* value) {
+    return Esp32BaseConfig::setStr(CFG_NS, key, value);
+}
+
+bool cfgGetStr(const char* key, char* out, size_t len, const char* def = "") {
+    return Esp32BaseConfig::getStr(CFG_NS, key, out, len, def);
+}
+
+bool cfgSetInt(const char* key, int32_t value) {
+    return Esp32BaseConfig::setInt(CFG_NS, key, value);
+}
+
+int32_t cfgGetInt(const char* key, int32_t def = 0) {
+    return Esp32BaseConfig::getInt(CFG_NS, key, def);
+}
+
 bool cfgSetIntDeferred(const char* key, int32_t value) {
     return Esp32BaseConfig::setIntDeferred(CFG_NS, key, value);
+}
+
+bool cfgSetBool(const char* key, bool value) {
+    return Esp32BaseConfig::setBool(CFG_NS, key, value);
+}
+
+bool cfgGetBool(const char* key, bool def = false) {
+    return Esp32BaseConfig::getBool(CFG_NS, key, def);
+}
+
+bool parseIRCodeEntry(const char* value, uint8_t* protocol, uint64_t* code) {
+    if (!value || !protocol || !code) return false;
+
+    char* end = nullptr;
+    unsigned long parsedProtocol = strtoul(value, &end, 10);
+    if (end == value || *end != ':' || parsedProtocol > 255) return false;
+
+    char* codeEnd = nullptr;
+    unsigned long long parsedCode = strtoull(end + 1, &codeEnd, 16);
+    if (codeEnd == end + 1 || *codeEnd != '\0') return false;
+
+    *protocol = static_cast<uint8_t>(parsedProtocol);
+    *code = static_cast<uint64_t>(parsedCode);
+    return true;
 }
 }
 
@@ -48,12 +86,16 @@ FanController::FanController(FanDriver& fan, ButtonDriver& btn, LedIndicator& le
     , _target_speed(0)
     , _timer_remaining(0)
     , _run_duration(0)
+    , _boot_run_duration(0)
     , _last_run_tick(0)
     , _last_operation_tick(0)
+    , _last_runtime_save_tick(0)
     , _sleep_wait_time(60)
     , _soft_start_time(1000)
     , _soft_stop_time(1000)
     , _block_detect_time(1500)
+    , _led_flash_duration_ms(200)
+    , _runtime_save_interval_min(1)
     , _min_effective_speed(10)
     , _is_sleeping(false)
     , _sleep_entry_tick(0)
@@ -84,13 +126,7 @@ bool FanController::begin() {
                       static_cast<int>(last_speed), static_cast<long>(last_timer));
             _timer_remaining = static_cast<uint32_t>(last_timer);
             _last_timer_tick = millis();
-            // Calculate gear from speed
-            for (uint8_t g = 0; g < 5; g++) {
-                if (GEAR_SPEED[g] == last_speed) {
-                    _current_gear = g;
-                    break;
-                }
-            }
+            _syncGearFromSpeed(static_cast<uint8_t>(last_speed));
             _applySpeed(static_cast<uint8_t>(last_speed));
         } else {
             ESP32BASE_LOG_I("FanCtrl", "No restore needed (last_speed=0)");
@@ -99,8 +135,7 @@ bool FanController::begin() {
         ESP32BASE_LOG_I("FanCtrl", "Auto-restore disabled");
     }
 
-    // Set initial LED state
-    _led.setGear(_current_gear);
+    _updateLedStatus();
 
     ESP32BASE_LOG_I("FanCtrl", "Controller ready, min_speed=%d%%, auto_restore=%s",
              _min_effective_speed, _auto_restore ? "true" : "false");
@@ -136,7 +171,7 @@ void FanController::tick() {
             break;
     }
 
-    // Update LED every tick
+    _updateLedStatus();
     _led.tick();
 
     // Feed watchdog to prevent Soft WDT reset during heavy operations (e.g. Flash writes)
@@ -147,8 +182,10 @@ SystemState FanController::getState() const { return _state; }
 uint8_t FanController::getCurrentGear() const { return _current_gear; }
 uint8_t FanController::getCurrentSpeed() const { return _fan.getSpeed(); }
 uint8_t FanController::getTargetSpeed() const { return _target_speed; }
+uint16_t FanController::getCurrentRpm() const { return _fan.getRpm(); }
 uint32_t FanController::getTimerRemaining() const { return _timer_remaining; }
 uint32_t FanController::getTotalRunDuration() const { return _run_duration; }
+uint32_t FanController::getBootRunDuration() const { return _boot_run_duration; }
 bool FanController::isBlocked() const { return _fan.isBlocked(); }
 bool FanController::isSleeping() const { return _is_sleeping; }
 bool FanController::getAutoRestore() const { return _auto_restore; }
@@ -158,37 +195,32 @@ void FanController::setAutoRestore(bool enable) {
     cfgSetBool(KEY_AUTO_RESTORE, _auto_restore);
 }
 
-void FanController::attemptBlockRecovery() {
-    if (_state != SYS_ERROR) return;
-
-    _fan.resetBlock();
-    _recovery_attempting = true;
-    _recovery_start_tick = millis();
-
-    if (_target_speed > 0) {
-        _applySpeed(_target_speed);
-        ESP32BASE_LOG_I("FanCtrl", "Block recovery attempt started (1.5s window)");
-    }
-}
-
 bool FanController::setSpeed(uint8_t speed) {
     _last_operation_tick = millis();
     _is_sleeping = false;
     Esp32BaseWiFi::setPowerSave(false);
 
+    if (speed > 100) speed = 100;
     if (speed > 0 && speed < _min_effective_speed) {
         speed = _min_effective_speed;
     }
 
     _target_speed = speed;
-    if (_state == SYS_ERROR) {
-        _fan.resetBlock();
-        _recovery_attempting = false;
-        _led.setOverride(LED_OFF);
-        _state = SYS_IDLE;
-    }
+    _syncGearFromSpeed(speed);
 
-    _applySpeed(speed);
+    if (_state == SYS_ERROR) {
+        if (speed == 0) {
+            return stop();
+        }
+        _fan.resetBlock();
+        _recovery_attempting = true;
+        _recovery_start_tick = millis();
+        _fan.setSpeed(speed);
+        _saveRuntimeState(true);
+    } else {
+        _applySpeed(speed, true);
+    }
+    notifyUserAction();
     ESP32BASE_LOG_I("FanCtrl", "Speed requested: target=%u output=%u state=%u",
                       (unsigned)_target_speed, (unsigned)_fan.getSpeed(), (unsigned)_state);
     return true;
@@ -202,12 +234,14 @@ bool FanController::setTimer(uint32_t seconds) {
     _last_operation_tick = millis();
     _is_sleeping = false;
     Esp32BaseWiFi::setPowerSave(false);
+    _saveRuntimeState(true);
 
     if (seconds > 0) {
         ESP32BASE_LOG_I("FanCtrl", "Timer set: %lu seconds", static_cast<unsigned long>(seconds));
     } else {
         ESP32BASE_LOG_I("FanCtrl", "Timer cancelled");
     }
+    notifyUserAction();
     return true;
 }
 
@@ -217,17 +251,48 @@ bool FanController::stop() {
     Esp32BaseWiFi::setPowerSave(false);
     _timer_remaining = 0;
     _target_speed = 0;
-    _applySpeed(0);
+    _current_gear = 0;
+    _recovery_attempting = false;
+    if (_state == SYS_ERROR || _fan.isBlocked()) {
+        _fan.resetBlock();
+        _state = SYS_IDLE;
+    }
+    _applySpeed(0, true);
+    notifyUserAction();
     ESP32BASE_LOG_I("FanCtrl", "Fan stopped by request");
     return true;
 }
 
 bool FanController::resetFactory() {
-    if (!Esp32BaseConfig::clearNamespace(CFG_NS)) {
-        ESP32BASE_LOG_E("FanCtrl", "Factory reset failed: app namespace clear failed");
+    bool ok = Esp32BaseConfig::clearNamespace(CFG_NS);
+    ok = Esp32BaseConfig::clearLibraryNamespaces() && ok;
+    ok = Esp32BaseConfig::flushAll() && ok;
+    if (!ok) {
+        ESP32BASE_LOG_E("FanCtrl", "Factory reset failed: config clear failed");
     }
     ESP.restart();
     return true;
+}
+
+bool FanController::clearIRCode(uint8_t key_index) {
+    if (key_index >= IR_KEY_COUNT) return false;
+
+    uint8_t proto = 0;
+    uint64_t code = 0;
+    _ir.getKeyCode(key_index, &proto, &code);
+    if (proto == 0 && code == 0) return false;
+
+    char key[20];
+    snprintf(key, sizeof(key), "%s%d", KEY_IR_ENTRY, key_index);
+    _ir.setKeyCode(key_index, 0, 0);
+    bool ok = cfgSetStr(key, "");
+    ok = Esp32BaseConfig::flushAll() && ok;
+    ESP32BASE_LOG_I("FanCtrl", "IR code cleared key=%u result=%s", key_index, ok ? "success" : "failed");
+    return ok;
+}
+
+void FanController::notifyUserAction() {
+    _led.flashOnce();
 }
 
 uint8_t FanController::getMinEffectiveSpeed() const { return _min_effective_speed; }
@@ -235,6 +300,7 @@ uint8_t FanController::getMinEffectiveSpeed() const { return _min_effective_spee
 void FanController::setMinEffectiveSpeed(uint8_t speed) {
     if (speed > 50) speed = 50;
     _min_effective_speed = speed;
+    _fan.setMinEffectiveSpeed(_min_effective_speed);
     cfgSetInt(KEY_MIN_SPEED, _min_effective_speed);
 }
 
@@ -243,6 +309,7 @@ uint16_t FanController::getSoftStartTime() const {
 }
 
 void FanController::setSoftStartTime(uint16_t ms) {
+    if (ms > 10000) ms = 10000;
     _soft_start_time = ms;
     cfgSetInt(KEY_SOFT_START, static_cast<int32_t>(ms));
     _fan.setSoftStartTime(ms);
@@ -253,6 +320,7 @@ uint16_t FanController::getSoftStopTime() const {
 }
 
 void FanController::setSoftStopTime(uint16_t ms) {
+    if (ms > 10000) ms = 10000;
     _soft_stop_time = ms;
     cfgSetInt(KEY_SOFT_STOP, static_cast<int32_t>(ms));
     _fan.setSoftStopTime(ms);
@@ -263,6 +331,8 @@ uint16_t FanController::getBlockDetectTime() const {
 }
 
 void FanController::setBlockDetectTime(uint16_t ms) {
+    if (ms < 100) ms = 100;
+    if (ms > 5000) ms = 5000;
     _block_detect_time = ms;
     cfgSetInt(KEY_BLOCK_DETECT, static_cast<int32_t>(ms));
     _fan.setBlockDetectTime(ms);
@@ -271,8 +341,31 @@ void FanController::setBlockDetectTime(uint16_t ms) {
 uint16_t FanController::getSleepWaitTime() const { return _sleep_wait_time; }
 
 void FanController::setSleepWaitTime(uint16_t seconds) {
+    if (seconds > 3600) seconds = 3600;
     _sleep_wait_time = seconds;
     cfgSetInt(KEY_SLEEP_WAIT, _sleep_wait_time);
+}
+
+uint16_t FanController::getLedFlashDuration() const {
+    return _led_flash_duration_ms;
+}
+
+void FanController::setLedFlashDuration(uint16_t ms) {
+    if (ms > 2000) ms = 2000;
+    _led_flash_duration_ms = ms;
+    _led.setFlashDuration(_led_flash_duration_ms);
+    cfgSetInt(KEY_LED_FLASH_MS, static_cast<int32_t>(_led_flash_duration_ms));
+}
+
+uint8_t FanController::getRuntimeSaveIntervalMinutes() const {
+    return _runtime_save_interval_min;
+}
+
+void FanController::setRuntimeSaveIntervalMinutes(uint8_t minutes) {
+    if (minutes < 1) minutes = 1;
+    if (minutes > 60) minutes = 60;
+    _runtime_save_interval_min = minutes;
+    cfgSetInt(KEY_RUNTIME_SAVE_MIN, static_cast<int32_t>(_runtime_save_interval_min));
 }
 
 void FanController::_handleInit() { _state = SYS_IDLE; }
@@ -280,6 +373,7 @@ void FanController::_handleInit() { _state = SYS_IDLE; }
 void FanController::_handleIdle() {
     _processButtonEvents();
     _processIREvents();
+    _processTimer();
     _processSleep();
 }
 
@@ -289,15 +383,20 @@ void FanController::_handleRunning() {
     _processTimer();
 
     uint32_t now = millis();
-    if (now - _last_run_tick >= 1000) {
+    bool duration_changed = false;
+    while (now - _last_run_tick >= 1000) {
         _run_duration++;
-        _last_run_tick = now;
+        _boot_run_duration++;
+        _last_run_tick += 1000;
+        duration_changed = true;
+    }
+    if (duration_changed) {
+        _saveRuntimeState();
     }
 
     if (_fan.isBlocked()) {
         _state = SYS_ERROR;
         ESP32BASE_LOG_E("FanCtrl", "BLOCK DETECTED! Transitioning to ERROR state");
-        _led.setOverride(LED_FAST_BLINK);
         return;
     }
 
@@ -310,11 +409,14 @@ void FanController::_handleRunning() {
 void FanController::_handleSleep() {
     _processButtonEvents();
     _processIREvents();
+    _processTimer();
 
     if (millis() - _last_operation_tick < 1000) {
         _is_sleeping = false;
         Esp32BaseWiFi::setPowerSave(false);
-        _state = SYS_IDLE;
+        if (_state == SYS_SLEEP) {
+            _state = SYS_IDLE;
+        }
         ESP32BASE_LOG_I("FanCtrl", "Woken from sleep, transitioning to IDLE");
     }
 }
@@ -322,6 +424,7 @@ void FanController::_handleSleep() {
 void FanController::_handleError() {
     _processButtonEvents();
     _processIREvents();
+    _processTimer();
 
     // Check recovery progress
     if (_recovery_attempting) {
@@ -330,6 +433,7 @@ void FanController::_handleError() {
             _recovery_attempting = false;
             if (_fan.getRpm() > 0) {
                 _state = SYS_RUNNING;
+                _last_run_tick = millis();
                 ESP32BASE_LOG_I("FanCtrl", "Recovery successful, back to RUNNING");
             } else {
                 ESP32BASE_LOG_W("FanCtrl", "Recovery failed, still blocked");
@@ -349,10 +453,8 @@ void FanController::_processButtonEvents() {
                 _current_gear++;
                 uint8_t speed = GEAR_SPEED[_current_gear];
                 setSpeed(speed);
-                _led.setGear(_current_gear);
                 ESP32BASE_LOG_I("FanCtrl", "Button: Gear up to %d (%d%%)", _current_gear, speed);
             }
-            _led.flashOnce();
             break;
 
         case BTN_DECEL_SHORT:
@@ -360,10 +462,8 @@ void FanController::_processButtonEvents() {
                 _current_gear--;
                 uint8_t speed = GEAR_SPEED[_current_gear];
                 setSpeed(speed);
-                _led.setGear(_current_gear);
                 ESP32BASE_LOG_I("FanCtrl", "Button: Gear down to %d (%d%%)", _current_gear, speed);
             }
-            _led.flashOnce();
             break;
 
         case BTN_BOTH_LONG:
@@ -379,8 +479,10 @@ void FanController::_processButtonEvents() {
 void FanController::_processIREvents() {
     IREvent event = _ir.getEvent();
     if (_ir.consumeLearnedCode()) {
-        _saveIRCodes();
-        ESP32BASE_LOG_I("FanCtrl", "IR learned code persisted");
+        uint8_t key = _ir.getLearnedKeyIndex();
+        _saveIRCode(key);
+        notifyUserAction();
+        ESP32BASE_LOG_I("FanCtrl", "IR learned code persisted key=%u", key);
     }
     if (event == IR_EVENT_NONE) return;
 
@@ -390,7 +492,6 @@ void FanController::_processIREvents() {
                 _current_gear++;
                 uint8_t speed = GEAR_SPEED[_current_gear];
                 setSpeed(speed);
-                _led.setGear(_current_gear);
                 ESP32BASE_LOG_I("FanCtrl", "IR: Gear up to %d (%d%%)", _current_gear, speed);
             }
             break;
@@ -400,15 +501,12 @@ void FanController::_processIREvents() {
                 _current_gear--;
                 uint8_t speed = GEAR_SPEED[_current_gear];
                 setSpeed(speed);
-                _led.setGear(_current_gear);
                 ESP32BASE_LOG_I("FanCtrl", "IR: Gear down to %d (%d%%)", _current_gear, speed);
             }
             break;
 
         case IR_EVENT_STOP:
             stop();
-            _current_gear = 0;
-            _led.setGear(0);
             break;
 
         case IR_EVENT_TIMER_30M:
@@ -426,6 +524,16 @@ void FanController::_processIREvents() {
             ESP32BASE_LOG_I("FanCtrl", "IR: Timer set 2h");
             break;
 
+        case IR_EVENT_TIMER_4H:
+            setTimer(14400);
+            ESP32BASE_LOG_I("FanCtrl", "IR: Timer set 4h");
+            break;
+
+        case IR_EVENT_TIMER_8H:
+            setTimer(28800);
+            ESP32BASE_LOG_I("FanCtrl", "IR: Timer set 8h");
+            break;
+
         default:
             break;
     }
@@ -435,20 +543,23 @@ void FanController::_processTimer() {
     if (_timer_remaining == 0) return;
 
     uint32_t now = millis();
+    bool timer_changed = false;
 
-    if (now - _last_timer_tick >= 1000) {
+    while (_timer_remaining > 0 && now - _last_timer_tick >= 1000) {
         _timer_remaining--;
-        _last_timer_tick = now;
-
-        if (_timer_remaining == 0) {
-            stop();
-            _current_gear = 0;
-            _led.setGear(0);
-            ESP32BASE_LOG_I("FanCtrl", "Timer expired, fan stopped");
-        } else if (_timer_remaining <= 60 && _timer_remaining % 10 == 0) {
-            ESP32BASE_LOG_D("FanCtrl", "Timer remaining: %lus", static_cast<unsigned long>(_timer_remaining));
-        }
+        _last_timer_tick += 1000;
+        timer_changed = true;
     }
+
+    if (!timer_changed) return;
+
+    if (_timer_remaining == 0) {
+        stop();
+        ESP32BASE_LOG_I("FanCtrl", "Timer expired, fan stopped");
+    } else if (_timer_remaining <= 60 && _timer_remaining % 10 == 0) {
+        ESP32BASE_LOG_D("FanCtrl", "Timer remaining: %lus", static_cast<unsigned long>(_timer_remaining));
+    }
+    _saveRuntimeState();
 }
 
 void FanController::_processSleep() {
@@ -470,7 +581,7 @@ void FanController::_processSleep() {
         _state = SYS_SLEEP;
         _sleep_entry_tick = millis();
 
-        // ESP32 modem sleep equivalent while keeping STA/Web available.
+        // Enter modem sleep to save power
         Esp32BaseWiFi::setPowerSave(true);
         
         ESP32BASE_LOG_I("FanCtrl", "Entering sleep mode (Modem Sleep), idle=%lus",
@@ -478,45 +589,89 @@ void FanController::_processSleep() {
     }
 }
 
-bool FanController::_applySpeed(uint8_t speed) {
+bool FanController::_applySpeed(uint8_t speed, bool force_save) {
     bool ok = _fan.setSpeed(speed);
     if (ok) {
         if (speed > 0) {
             _state = SYS_RUNNING;
             _last_run_tick = millis();
         }
-        _saveRuntimeState();
+        _saveRuntimeState(force_save);
     }
     return ok;
 }
 
-void FanController::_saveRuntimeState() {
-    static uint32_t last_save = 0;
+void FanController::_saveRuntimeState(bool force) {
     uint32_t now = millis();
 
-    // Throttle Flash writes: max once every 5 seconds.
-    if (now - last_save < 5000) return;
-    last_save = now;
+    // Throttle Flash writes. UI uses in-memory counters; persistence can lag to reduce wear.
+    uint32_t interval_ms = static_cast<uint32_t>(_runtime_save_interval_min) * 60000UL;
+    if (!force && now - _last_runtime_save_tick < interval_ms) return;
+    _last_runtime_save_tick = now;
 
-    cfgSetIntDeferred(KEY_LAST_SPEED, _fan.getSpeed());
-    cfgSetIntDeferred(KEY_LAST_TIMER, static_cast<int32_t>(_timer_remaining));
+    if (_auto_restore) {
+        cfgSetIntDeferred(KEY_LAST_SPEED, _target_speed);
+        cfgSetIntDeferred(KEY_LAST_TIMER, static_cast<int32_t>(_timer_remaining));
+    }
     cfgSetIntDeferred(KEY_RUN_DURATION, static_cast<int32_t>(_run_duration));
+}
+
+void FanController::_syncGearFromSpeed(uint8_t speed) {
+    if (speed == 0) {
+        _current_gear = 0;
+    } else if (speed <= GEAR_SPEED[1]) {
+        _current_gear = 1;
+    } else if (speed <= GEAR_SPEED[2]) {
+        _current_gear = 2;
+    } else if (speed <= GEAR_SPEED[3]) {
+        _current_gear = 3;
+    } else {
+        _current_gear = 4;
+    }
+}
+
+void FanController::_updateLedStatus() {
+    if (_state == SYS_ERROR || _fan.isBlocked()) {
+        _led.setOverride(LED_FAST_BLINK);
+    } else if (!Esp32BaseWiFi::isConnected()) {
+        _led.setOverride(LED_SLOW_BLINK);
+    } else {
+        _led.setGear(_current_gear);
+    }
 }
 
 void FanController::_loadConfig() {
     _min_effective_speed = static_cast<uint8_t>(
         cfgGetInt(KEY_MIN_SPEED, 10));
+    if (_min_effective_speed > 50) _min_effective_speed = 50;
     _sleep_wait_time = static_cast<uint16_t>(
         cfgGetInt(KEY_SLEEP_WAIT, 60));
+    if (_sleep_wait_time > 3600) _sleep_wait_time = 3600;
     _auto_restore = cfgGetBool(KEY_AUTO_RESTORE, true);
+    int32_t led_flash_ms = cfgGetInt(KEY_LED_FLASH_MS, 200);
+    if (led_flash_ms < 0) led_flash_ms = 0;
+    if (led_flash_ms > 2000) led_flash_ms = 2000;
+    _led_flash_duration_ms = static_cast<uint16_t>(led_flash_ms);
+    _led.setFlashDuration(_led_flash_duration_ms);
+    int32_t runtime_save_min = cfgGetInt(KEY_RUNTIME_SAVE_MIN, 1);
+    if (runtime_save_min < 1) runtime_save_min = 1;
+    if (runtime_save_min > 60) runtime_save_min = 60;
+    _runtime_save_interval_min = static_cast<uint8_t>(runtime_save_min);
 
     int32_t soft_start = cfgGetInt(KEY_SOFT_START, 1000);
     int32_t soft_stop = cfgGetInt(KEY_SOFT_STOP, 1000);
     int32_t block_detect = cfgGetInt(KEY_BLOCK_DETECT, 1500);
+    if (soft_start < 0) soft_start = 0;
+    if (soft_start > 10000) soft_start = 10000;
+    if (soft_stop < 0) soft_stop = 0;
+    if (soft_stop > 10000) soft_stop = 10000;
+    if (block_detect < 100) block_detect = 100;
+    if (block_detect > 5000) block_detect = 5000;
 
     _soft_start_time = static_cast<uint16_t>(soft_start);
     _soft_stop_time = static_cast<uint16_t>(soft_stop);
     _block_detect_time = static_cast<uint16_t>(block_detect);
+    _fan.setMinEffectiveSpeed(_min_effective_speed);
     _fan.setSoftStartTime(_soft_start_time);
     _fan.setSoftStopTime(_soft_stop_time);
     _fan.setBlockDetectTime(_block_detect_time);
@@ -524,21 +679,46 @@ void FanController::_loadConfig() {
     _run_duration = static_cast<uint32_t>(
         cfgGetInt(KEY_RUN_DURATION, 0));
 
-    // Load IR codes
-    char key[8];
-    for (uint8_t i = 0; i < 6; i++) {
-        snprintf(key, sizeof(key), "%s%u", KEY_IR_PROTO, i);
-        int32_t proto = cfgGetInt(key, 0);
-        snprintf(key, sizeof(key), "%s%u", KEY_IR_CODE_LOW, i);
-        int32_t code_low = cfgGetInt(key, 0);
-        snprintf(key, sizeof(key), "%s%u", KEY_IR_CODE_HIGH, i);
-        int32_t code_high = cfgGetInt(key, 0);
-
-        uint64_t code = (static_cast<uint64_t>(code_high) << 32) | static_cast<uint32_t>(code_low);
-        _ir.setKeyCode(i, static_cast<uint8_t>(proto), code);
+    // Load IR codes. Each learned key is stored as one protocol:code value.
+    char key[20];
+    for (uint8_t i = 0; i < IR_KEY_COUNT; i++) {
+        uint8_t proto = 0;
+        uint64_t code = 0;
+        char value[32];
+        snprintf(key, sizeof(key), "%s%d", KEY_IR_ENTRY, i);
+        if (cfgGetStr(key, value, sizeof(value), "") &&
+            parseIRCodeEntry(value, &proto, &code)) {
+            _ir.setKeyCode(i, proto, code);
+        }
     }
 }
 
+void FanController::_saveIRCode(uint8_t key_index) {
+    if (key_index >= IR_KEY_COUNT) return;
+
+    char key[20];
+    uint8_t proto;
+    uint64_t code;
+    _ir.getKeyCode(key_index, &proto, &code);
+    if (proto == 0 && code == 0) return;
+
+    char value[32];
+    char current[32];
+    snprintf(key, sizeof(key), "%s%d", KEY_IR_ENTRY, key_index);
+    snprintf(value, sizeof(value), "%u:%016llX", proto, static_cast<unsigned long long>(code));
+    if (cfgGetStr(key, current, sizeof(current), "")) {
+        uint8_t currentProto = 0;
+        uint64_t currentCode = 0;
+        if (parseIRCodeEntry(current, &currentProto, &currentCode) &&
+            currentProto == proto && currentCode == code) {
+            ESP32BASE_LOG_I("FanCtrl", "IR learned code unchanged key=%u", key_index);
+            return;
+        }
+    }
+    cfgSetStr(key, value);
+}
+
+#ifdef UNIT_TEST
 void FanController::_saveConfig() {
     cfgSetInt(KEY_MIN_SPEED, _min_effective_speed);
     cfgSetInt(KEY_SOFT_START, _soft_start_time);
@@ -546,20 +726,13 @@ void FanController::_saveConfig() {
     cfgSetInt(KEY_BLOCK_DETECT, _block_detect_time);
     cfgSetInt(KEY_SLEEP_WAIT, _sleep_wait_time);
     cfgSetBool(KEY_AUTO_RESTORE, _auto_restore);
+    cfgSetInt(KEY_LED_FLASH_MS, static_cast<int32_t>(_led_flash_duration_ms));
+    cfgSetInt(KEY_RUNTIME_SAVE_MIN, static_cast<int32_t>(_runtime_save_interval_min));
 }
 
 void FanController::_saveIRCodes() {
-    char key[8];
-    for (uint8_t i = 0; i < 6; i++) {
-        uint8_t proto;
-        uint64_t code;
-        _ir.getKeyCode(i, &proto, &code);
-
-        snprintf(key, sizeof(key), "%s%u", KEY_IR_PROTO, i);
-        cfgSetInt(key, static_cast<int32_t>(proto));
-        snprintf(key, sizeof(key), "%s%u", KEY_IR_CODE_LOW, i);
-        cfgSetInt(key, static_cast<int32_t>(code & 0xFFFFFFFF));
-        snprintf(key, sizeof(key), "%s%u", KEY_IR_CODE_HIGH, i);
-        cfgSetInt(key, static_cast<int32_t>((code >> 32) & 0xFFFFFFFF));
+    for (uint8_t i = 0; i < IR_KEY_COUNT; i++) {
+        _saveIRCode(i);
     }
 }
+#endif

@@ -25,6 +25,8 @@ void analogWrite(uint8_t pin, uint8_t val) { g_pwmValue[pin] = val; }
 void attachInterrupt(uint8_t pin, void (*handler)(), int) { g_isr[pin] = handler; }
 void detachInterrupt(uint8_t pin) { g_isr[pin] = nullptr; }
 uint8_t digitalPinToInterrupt(uint8_t pin) { return pin; }
+void noInterrupts() {}
+void interrupts() {}
 
 ESPClass ESP;
 void ESPClass::restart() { g_restartCalled = true; }
@@ -72,6 +74,7 @@ struct WebParam {
 };
 WebParam g_params[12] = {};
 uint8_t g_paramCount = 0;
+Esp32BaseWeb::Method g_method = Esp32BaseWeb::METHOD_GET;
 int g_lastCode = 0;
 char g_lastBody[1024] = "";
 
@@ -99,8 +102,13 @@ int findStr(const char* ns, const char* key) {
 void webReset() {
     memset(g_params, 0, sizeof(g_params));
     g_paramCount = 0;
+    g_method = Esp32BaseWeb::METHOD_GET;
     g_lastCode = 0;
     g_lastBody[0] = '\0';
+}
+
+void webSetMethod(Esp32BaseWeb::Method method) {
+    g_method = method;
 }
 
 void webSetParam(const char* name, const char* value) {
@@ -199,6 +207,7 @@ bool Esp32BaseConfig::clearNamespace(const char* ns) {
     for (auto& item : g_strs) if (item.used && strcmp(item.ns, ns) == 0) item.used = false;
     return true;
 }
+bool Esp32BaseConfig::clearLibraryNamespaces() { return true; }
 void Esp32BaseConfig::enableConfigAudit(bool) {}
 void Esp32BaseConfig::enableConfigReadAudit(bool) {}
 
@@ -249,6 +258,9 @@ bool Esp32BaseWeb::setHomePath(const char*) { return true; }
 void Esp32BaseWeb::setHomeMode(HomeMode) {}
 void Esp32BaseWeb::setSystemNavMode(SystemNavMode) {}
 bool Esp32BaseWeb::setBuiltinLabel(BuiltinPage, const char*) { return true; }
+Esp32BaseWeb::Method Esp32BaseWeb::currentMethod() { return g_method; }
+bool Esp32BaseWeb::isMethod(Method method) { return method == METHOD_ANY || g_method == method; }
+const char* Esp32BaseWeb::currentMethodName() { return g_method == METHOD_POST ? "POST" : "GET"; }
 bool Esp32BaseWeb::hasParam(const char* name) {
     for (uint8_t i = 0; i < g_paramCount; ++i) {
         if (strcmp(g_params[i].name, name) == 0) return true;
@@ -440,6 +452,7 @@ void test_web_api_speed_timer_config_and_ir() {
     controller.setSoftStartTime(0);
     controller.setBlockDetectTime(60000);
 
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
     webSetParam("speed", "75");
     FanWeb::handleApiSpeed();
     TEST_ASSERT_EQUAL(200, g_lastCode);
@@ -447,12 +460,14 @@ void test_web_api_speed_timer_config_and_ir() {
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"target_speed\":75"));
 
     webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
     webSetParam("seconds", "7200");
     FanWeb::handleApiTimer();
     TEST_ASSERT_EQUAL(200, g_lastCode);
     TEST_ASSERT_EQUAL(7200, controller.getTimerRemaining());
 
     webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
     webSetParam("min_speed", "22");
     FanWeb::handleApiConfig();
     TEST_ASSERT_EQUAL(200, g_lastCode);
@@ -460,6 +475,7 @@ void test_web_api_speed_timer_config_and_ir() {
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"changed\":1"));
 
     webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
     webSetParam("key_index", "2");
     FanWeb::handleApiIrLearn();
     TEST_ASSERT_EQUAL(200, g_lastCode);
@@ -467,7 +483,7 @@ void test_web_api_speed_timer_config_and_ir() {
     TEST_ASSERT_EQUAL(2, ir.getLearnedKeyIndex());
 }
 
-void test_web_api_status_and_ir_status() {
+void test_web_api_status() {
     FanDriver fan(5, 12);
     ButtonDriver buttons(14, 4);
     LedIndicator led(2, true);
@@ -481,12 +497,7 @@ void test_web_api_status_and_ir_status() {
     TEST_ASSERT_EQUAL(200, g_lastCode);
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":true"));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ip\":\"192.168.4.10\""));
-
-    ir.setKeyCode(0, 1, 0xE01FULL);
-    webReset();
-    FanWeb::handleApiIrStatus();
-    TEST_ASSERT_EQUAL(200, g_lastCode);
-    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "0x0000E01F"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"clock\":\"2026-05-07 12:00:00\""));
 }
 
 int main(int, char**) {
@@ -497,6 +508,6 @@ int main(int, char**) {
     RUN_TEST(test_controller_config_timer_restore_and_sleep);
     RUN_TEST(test_controller_factory_reset_clears_app_namespace);
     RUN_TEST(test_web_api_speed_timer_config_and_ir);
-    RUN_TEST(test_web_api_status_and_ir_status);
+    RUN_TEST(test_web_api_status);
     return UNITY_END();
 }

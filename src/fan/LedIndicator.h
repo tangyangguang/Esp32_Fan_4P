@@ -20,24 +20,31 @@ public:
 
     void setGear(uint8_t gear);  // 0-4 档，自动设置 PWM 亮度
     void setOverride(LedMode mode);  // WiFi/故障等覆盖模式
+    void setFlashDuration(uint16_t ms);
+    uint16_t getFlashDuration() const;
     void flashOnce();  // 操作反馈闪1下
 
 private:
     void update();
+    void writeDigital(bool on);
+    void writeBrightness(uint8_t brightness);
+    void resetBlinkClock();
 
     uint8_t _pin;
     bool _active_low;
     uint8_t _current_gear;
-    LedMode _override_mode;
-    LedMode _saved_mode;
+    LedMode _base_mode;
     uint32_t _last_toggle;
-    bool _led_state;
+    bool _blink_state;
     uint32_t _flash_start;
-    bool _flashing;
+    bool _flash_active;
+    bool _flash_output_on;
+    bool _output_on;
+    uint16_t _flash_duration_ms;
 
-    static const uint32_t SLOW_BLINK_INTERVAL = 1000;  // 1Hz
-    static const uint32_t FAST_BLINK_INTERVAL = 200;   // 5Hz
-    static const uint32_t SINGLE_FLASH_DURATION = 300; // 300ms
+    static const uint32_t SLOW_BLINK_INTERVAL = 500;   // 1Hz full cycle
+    static const uint32_t FAST_BLINK_INTERVAL = 100;   // 5Hz full cycle
+    static const uint16_t DEFAULT_FLASH_DURATION = 200; // 200ms
 };
 
 #endif

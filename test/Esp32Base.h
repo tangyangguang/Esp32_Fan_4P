@@ -39,6 +39,7 @@ public:
     static bool setStrDeferred(const char* ns, const char* key, const char* value, uint32_t delayMs = 1000);
     static bool flushAll();
     static bool clearNamespace(const char* ns);
+    static bool clearLibraryNamespaces();
     static void enableConfigAudit(bool enabled);
     static void enableConfigReadAudit(bool enabled);
 };
@@ -73,6 +74,12 @@ public:
 class Esp32BaseWeb {
 public:
     using Handler = void (*)();
+    enum Method : uint8_t {
+        METHOD_UNKNOWN,
+        METHOD_GET,
+        METHOD_POST,
+        METHOD_ANY
+    };
     enum HomeMode : uint8_t {
         HOME_ESP32BASE,
         HOME_APP,
@@ -110,6 +117,9 @@ public:
     static void setHomeMode(HomeMode mode);
     static void setSystemNavMode(SystemNavMode mode);
     static bool setBuiltinLabel(BuiltinPage page, const char* label);
+    static Method currentMethod();
+    static bool isMethod(Method method);
+    static const char* currentMethodName();
     static bool hasParam(const char* name);
     static bool getParam(const char* name, char* out, size_t len);
     static void sendHeader(const char* title = nullptr);

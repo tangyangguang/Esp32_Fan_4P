@@ -28,8 +28,10 @@ public:
     uint8_t getCurrentGear() const;
     uint8_t getCurrentSpeed() const;
     uint8_t getTargetSpeed() const;
+    uint16_t getCurrentRpm() const;
     uint32_t getTimerRemaining() const;
     uint32_t getTotalRunDuration() const;
+    uint32_t getBootRunDuration() const;
     bool isBlocked() const;
     bool isSleeping() const;
 
@@ -38,6 +40,8 @@ public:
     bool setTimer(uint32_t seconds);
     bool stop();
     bool resetFactory();
+    void notifyUserAction();
+    bool clearIRCode(uint8_t key_index);
 
     // Configuration getters/setters
     uint8_t getMinEffectiveSpeed() const;
@@ -52,9 +56,10 @@ public:
     void setSleepWaitTime(uint16_t seconds);
     bool getAutoRestore() const;
     void setAutoRestore(bool enable);
-
-    // Block recovery
-    void attemptBlockRecovery();
+    uint16_t getLedFlashDuration() const;
+    void setLedFlashDuration(uint16_t ms);
+    uint8_t getRuntimeSaveIntervalMinutes() const;
+    void setRuntimeSaveIntervalMinutes(uint8_t minutes);
 
 private:
     void _handleInit();
@@ -68,11 +73,17 @@ private:
     void _processTimer();
     void _processSleep();
 
-    bool _applySpeed(uint8_t speed);
-    void _saveRuntimeState();
+    bool _applySpeed(uint8_t speed, bool force_save = false);
+    void _saveRuntimeState(bool force = false);
+    void _syncGearFromSpeed(uint8_t speed);
+    void _updateLedStatus();
     void _loadConfig();
+    void _saveIRCode(uint8_t key_index);
+
+#ifdef UNIT_TEST
     void _saveConfig();
     void _saveIRCodes();
+#endif
 
 #ifdef UNIT_TEST
 public:
@@ -89,12 +100,16 @@ public:
     uint8_t _target_speed;
     uint32_t _timer_remaining;
     uint32_t _run_duration;
+    uint32_t _boot_run_duration;
     uint32_t _last_run_tick;
     uint32_t _last_operation_tick;
+    uint32_t _last_runtime_save_tick;
     uint16_t _sleep_wait_time;
     uint16_t _soft_start_time;
     uint16_t _soft_stop_time;
     uint16_t _block_detect_time;
+    uint16_t _led_flash_duration_ms;
+    uint8_t _runtime_save_interval_min;
     uint8_t _min_effective_speed;
 
     bool _is_sleeping;

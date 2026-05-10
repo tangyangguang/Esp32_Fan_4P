@@ -26,6 +26,7 @@ public:
     void setSoftStartTime(uint16_t ms);
     void setSoftStopTime(uint16_t ms);
     void setBlockDetectTime(uint16_t ms);
+    void setMinEffectiveSpeed(uint8_t speed);
 
     bool isBlocked() const;
     void resetBlock();
@@ -42,6 +43,7 @@ private:
     uint16_t _soft_start_time;
     uint16_t _soft_stop_time;
     uint16_t _block_detect_time;
+    uint8_t _min_effective_speed;
     uint32_t _soft_start_tick;
     uint32_t _block_start_tick;
     FanState _state;

@@ -27,7 +27,7 @@
 | IR 依赖 | 已引入 | `crankyoldgit/IRremoteESP8266@^2.8.6` |
 | 编译状态 | 已通过 | `pio run -e esp32dev` 通过 |
 | 测试状态 | 已通过 | `pio test -e native`，7 个用例通过 |
-| 烧录状态 | 已通过 | `/dev/cu.usbserial-130`，115200 上传成功 |
+| 烧录状态 | 已通过 | `/dev/cu.usbserial-130`，115200 上传成功；`/dev/cu.usbserial-120` 是 ESP8266 |
 | 启动状态 | 已通过 | 进入 `ESP32-Config-65E4` 配网 AP，Web server ready |
 | 业务代码迁移 | 已完成基础闭环 | 仍需实机验证 PWM/RPM/OTA |
 | WiFi 配网与 Web/API | 已完成首轮验证 | 用户已完成 AP 配网，设备在局域网可访问 |
@@ -81,13 +81,13 @@
 
 - AP 配网完成后，`esp32-fan.local` 解析到 `192.168.2.112`。
 - `/esp32base/api/status` 返回 `profile=FULL`、`wifi.connected=true`。
-- 直接 IP 访问 `/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/ir/status` 均成功。
+- 直接 IP 访问 `/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop` 均成功。
 - 直接 IP 访问 `/esp32base/logs` 和 `/esp32base/ota` 页面均返回 HTTP 200。
 - 已通过 `/esp32base/ota` 上传同版本固件，上传返回 `{"ok":true}`，重启后 `/esp32base/api/status`、`/api/status`、`/fan`、`/esp32base/logs` 均恢复正常。
 - 已临时设置 `sleep_wait=3` 验证 WiFi power save，进入 `sleep` 状态后 `/api/status` 仍可访问；验证后恢复 `sleep_wait=60`。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
 - Web Auth 已使用 Esp32Base 内置持久化能力，默认账号密码由应用提供，修改入口为 `/esp32base/auth`。
-- 串口烧录新固件后，设备当前持久化 Auth 用户为 `root`，实测 `root/admin` 可访问 `/fan`、`/config`、`/esp32base/auth`、Logs、OTA 和业务 API。
+- 历史串口烧录后，设备持久化 Auth 用户曾为 `root`，实测 `root/admin` 可访问 `/fan`、`/config`、`/esp32base/auth`、Logs、OTA 和业务 API；本轮新固件尚未完成实机烧录。
 - 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出，默认 30 分钟最多一次。
 - 新版 Esp32Base NTP 未同步状态已降噪，不再周期性输出 `ntp_sync_pending` WARN。
 - `esp32-fan.local` 访问存在约 5 秒解析等待，直接 IP 访问无此等待；暂判断为客户端侧 mDNS 解析延迟。

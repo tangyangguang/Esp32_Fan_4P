@@ -20,12 +20,12 @@
 | `blk_ms` | int | 1500 | 堵转检测 ms，100-5000 |
 | `slp_s` | int | 60 | 停止后进入 power save 的等待秒数 |
 | `restore` | bool | true | 上电恢复策略 |
+| `led_ms` | int | 200 | 操作反馈 LED 闪烁时长 ms |
+| `rt_save_m` | int | 1 | 运行状态持久化间隔分钟 |
 | `last_spd` | int | 0 | 上次速度 |
 | `last_tim` | int | 0 | 上次剩余定时秒数 |
 | `run_s` | int | 0 | 累计运行秒数 |
-| `ir_p0..5` | int | 0 | 红外协议 |
-| `ir_l0..5` | int | 0 | 红外码低 32 位 |
-| `ir_h0..5` | int | 0 | 红外码高 32 位 |
+| `ir_0..7` | string | 空 | 红外学习码，格式为 `protocol:hexCode` |
 
 应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin123")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
 
@@ -94,9 +94,7 @@ API：
 | `/api/timer` | `seconds=0..356400` | 设置或读取定时 |
 | `/api/stop` | 无 | 停止风扇 |
 | `/api/config` | 配置表单字段 | 保存或读取配置 |
-| `/api/ir/learn` | `key_index=0..5` | 启动红外学习 |
-| `/api/ir/status` | 无 | 返回学习状态和已保存码 |
-| `/api/reset` | 无 | 清应用配置并重启 |
+| `/api/ir/learn` | `key_index=0..7`，可选 `clear=1` | 启动或清除红外学习码 |
 
 实现约束：
 
@@ -178,11 +176,13 @@ API：
 - `pio run -e esp32dev` 通过。
 - `pio test -e native` 通过，7 个测试用例成功。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
-- 设备当前持久化 Auth 用户为 `root`，实测 `root/admin` 可访问业务页和基础库页。
+- 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
+- 设备当前未连接局域网，本机不在 ESP32 AP 网段，`192.168.4.1` 暂无法从本机访问；需要重新配网后继续 Web/API 实机验证。
+- 历史实机中设备持久化 Auth 用户曾为 `root`，实测 `root/admin` 可访问业务页和基础库页。
 - AP 配网后设备 IP 为 `192.168.2.112`，`esp32-fan.local` 可解析。
 - `http://192.168.2.112/api/status` 返回风扇状态、IP、RSSI、NTP 时间。
 - `http://192.168.2.112/fan` 和 `http://192.168.2.112/config` 页面可完整返回。
-- `http://192.168.2.112/api/speed?speed=35`、`/api/timer?seconds=60`、`/api/stop`、`/api/ir/status` 均返回成功。
+- `POST http://192.168.2.112/api/speed speed=35`、`/api/timer seconds=60`、`/api/stop` 均返回成功。
 - `http://192.168.2.112/esp32base/api/status` 返回 Esp32Base Full profile、heap、flash、WiFi connected 状态。
 - `http://192.168.2.112/esp32base/logs` 和 `http://192.168.2.112/esp32base/ota` 页面 GET 返回 HTTP 200。
 - `POST http://192.168.2.112/esp32base/ota` 上传当前 `firmware.bin` 返回 `{"ok":true}`，重启后基础库和业务页面/API 恢复正常。

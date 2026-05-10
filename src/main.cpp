@@ -33,7 +33,7 @@ static bool bootClearArmed = false;
 
 static void configureBaseWebBeforeBegin() {
     Esp32BaseWeb::setDefaultAuth("admin", "admin123");
-    Esp32BaseWeb::setDeviceName("ESP32 Fan");
+    Esp32BaseWeb::setDeviceName("ESP Fan");
     Esp32BaseWeb::setHomePath("/fan");
     Esp32BaseWeb::setHomeMode(Esp32BaseWeb::HOME_COMBINED);
     Esp32BaseWeb::setSystemNavMode(Esp32BaseWeb::SYSTEM_NAV_SECTION);
@@ -49,8 +49,6 @@ static void registerFanRoutes() {
     ok &= Esp32BaseWeb::addApi("/api/stop", FanWeb::handleApiStop);
     ok &= Esp32BaseWeb::addApi("/api/config", FanWeb::handleApiConfig);
     ok &= Esp32BaseWeb::addApi("/api/ir/learn", FanWeb::handleApiIrLearn);
-    ok &= Esp32BaseWeb::addApi("/api/ir/status", FanWeb::handleApiIrStatus);
-    ok &= Esp32BaseWeb::addApi("/api/reset", FanWeb::handleApiReset);
     if (!ok) {
         ESP32BASE_LOG_E("main", "custom Web route registration incomplete");
     }

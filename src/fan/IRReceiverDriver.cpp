@@ -2,16 +2,30 @@
 
 #include <Arduino.h>
 #include <IRrecv.h>
-#include <Esp32BaseLog.h>
+#ifdef UNIT_TEST
+#include "Esp32Base.h"
+#else
+#include <Esp32Base.h>
+#endif
 
 IRReceiverDriver::IRReceiverDriver(uint8_t recv_pin)
     : _recv_pin(recv_pin)
+    , _irrecv(recv_pin, kCaptureBufferSize, kCaptureTimeout, true)
+    , _initialized(false)
     , _learning(false)
     , _learning_key_index(0)
     , _learning_start_tick(0)
     , _learned_dirty(false)
+    , _learned_sequence(0)
+    , _learn_reject_sequence(0)
+    , _duplicate_key_index(IR_KEY_COUNT)
+    , _ignore_until_tick(0)
     , _last_protocol(0)
-    , _last_code(0) {
+    , _last_code(0)
+#ifdef UNIT_TEST
+    , _test_event(IR_EVENT_NONE)
+#endif
+{
     for (uint8_t i = 0; i < IR_KEY_COUNT; i++) {
         _protocols[i] = 0;
         _codes[i] = 0;
@@ -19,35 +33,38 @@ IRReceiverDriver::IRReceiverDriver(uint8_t recv_pin)
 }
 
 bool IRReceiverDriver::begin() {
-    // IRremoteESP8266 will be initialized on first use
+    if (!_initialized) {
+        _irrecv.enableIRIn();
+        _initialized = true;
+    }
     ESP32BASE_LOG_I("IR", "Initialized: RECV=GPIO%d", _recv_pin);
     return true;
 }
 
 IREvent IRReceiverDriver::getEvent() {
-    static IRrecv irrecv(_recv_pin, kCaptureBufferSize, kCaptureTimeout, true);
-    static bool initialized = false;
-
-    if (!initialized) {
-        irrecv.enableIRIn();
-        initialized = true;
-        ESP32BASE_LOG_D("IR", "IR receiver enabled");
+#ifdef UNIT_TEST
+    if (_test_event != IR_EVENT_NONE) {
+        IREvent event = _test_event;
+        _test_event = IR_EVENT_NONE;
+        return event;
     }
+#endif
 
     decode_results results;
 
-    if (!irrecv.decode(&results)) {
+    if (!_irrecv.decode(&results)) {
         // Check learning timeout
         if (_learning && (millis() - _learning_start_tick >= LEARNING_TIMEOUT_MS)) {
             ESP32BASE_LOG_W("IR", "Learning timeout (key=%d)", _learning_key_index);
             _learning = false;
+            _duplicate_key_index = IR_KEY_COUNT;
         }
         return IR_EVENT_NONE;
     }
 
 #ifndef UNIT_TEST
     if (results.repeat) {
-        irrecv.resume();
+        _irrecv.resume();
         ESP32BASE_LOG_D("IR", "Ignored repeat IR frame: protocol=%d, code=0x%08llX",
                           (int)results.decode_type, static_cast<unsigned long long>(results.value));
         return IR_EVENT_NONE;
@@ -55,8 +72,8 @@ IREvent IRReceiverDriver::getEvent() {
 #endif
 
     if ((int)results.decode_type <= 0 || results.value == 0) {
-        irrecv.resume();
-        ESP32BASE_LOG_W("IR", "Ignored undecoded IR frame: protocol=%d, code=0x%08llX",
+        _irrecv.resume();
+        ESP32BASE_LOG_D("IR", "Ignored undecoded IR frame: protocol=%d, code=0x%08llX",
                           (int)results.decode_type, static_cast<unsigned long long>(results.value));
         return IR_EVENT_NONE;
     }
@@ -65,16 +82,23 @@ IREvent IRReceiverDriver::getEvent() {
     _last_protocol = (uint8_t)results.decode_type;
     _last_code = results.value;
 
-    irrecv.resume();
+    _irrecv.resume();
 
     ESP32BASE_LOG_D("IR", "Received: protocol=%d, code=0x%08llX",
              _last_protocol, static_cast<unsigned long long>(_last_code));
 
+    if (_ignore_until_tick != 0) {
+        if ((int32_t)(millis() - _ignore_until_tick) < 0) {
+            ESP32BASE_LOG_D("IR", "Ignored debounced IR frame: protocol=%d, code=0x%08llX",
+                              _last_protocol, static_cast<unsigned long long>(_last_code));
+            return IR_EVENT_NONE;
+        }
+        _ignore_until_tick = 0;
+    }
+
     // If in learning mode, save the code and exit learning
     if (_learning) {
-        setKeyCode(_learning_key_index, _last_protocol, _last_code);
-        _learning = false;
-        _learned_dirty = true;
+        completeLearning(_last_protocol, _last_code);
         return IR_EVENT_NONE;
     }
 
@@ -88,6 +112,10 @@ bool IRReceiverDriver::startLearning(uint8_t key_index) {
     _learning = true;
     _learning_key_index = key_index;
     _learning_start_tick = millis();
+    _duplicate_key_index = IR_KEY_COUNT;
+    _ignore_until_tick = 0;
+    _last_protocol = 0;
+    _last_code = 0;
 
     ESP32BASE_LOG_I("IR", "Learning mode started for key %d (10s timeout)", key_index);
     return true;
@@ -144,6 +172,77 @@ uint64_t IRReceiverDriver::getLastCode() const {
     return _last_code;
 }
 
+uint32_t IRReceiverDriver::getLearnedSequence() const {
+    return _learned_sequence;
+}
+
+uint32_t IRReceiverDriver::getLearnRejectSequence() const {
+    return _learn_reject_sequence;
+}
+
+uint8_t IRReceiverDriver::getDuplicateKeyIndex() const {
+    return _duplicate_key_index;
+}
+
+bool IRReceiverDriver::findDuplicateKey(uint8_t protocol, uint64_t code, uint8_t except_key, uint8_t* duplicate_key) const {
+    if (protocol == 0 && code == 0) return false;
+    for (uint8_t i = 0; i < IR_KEY_COUNT; i++) {
+        if (i == except_key) continue;
+        if (_protocols[i] == protocol && _codes[i] == code) {
+            if (duplicate_key != nullptr) *duplicate_key = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool IRReceiverDriver::completeLearning(uint8_t protocol, uint64_t code) {
+    if (!_learning || _learning_key_index >= IR_KEY_COUNT) return false;
+
+    uint8_t duplicate_key = 0;
+    if (findDuplicateKey(protocol, code, _learning_key_index, &duplicate_key)) {
+        _duplicate_key_index = duplicate_key;
+        _learn_reject_sequence++;
+        _ignore_until_tick = millis() + DUPLICATE_LEARN_IGNORE_MS;
+        ESP32BASE_LOG_W("IR", "Rejected duplicate learned code key=%u duplicate_of=%u protocol=%u code=0x%08llX",
+                          _learning_key_index, duplicate_key, protocol,
+                          static_cast<unsigned long long>(code));
+        return false;
+    }
+
+    _duplicate_key_index = IR_KEY_COUNT;
+    setKeyCode(_learning_key_index, protocol, code);
+    _last_protocol = protocol;
+    _last_code = code;
+    _learning = false;
+    _learned_dirty = true;
+    _learned_sequence++;
+    _ignore_until_tick = millis() + POST_LEARN_IGNORE_MS;
+    return true;
+}
+
+#ifdef UNIT_TEST
+void IRReceiverDriver::testQueueEvent(IREvent event) {
+    _test_event = event;
+}
+
+void IRReceiverDriver::testMarkLearned(uint8_t key_index, uint8_t protocol, uint64_t code) {
+    if (key_index >= IR_KEY_COUNT) return;
+    setKeyCode(key_index, protocol, code);
+    _learning_key_index = key_index;
+    _last_protocol = protocol;
+    _last_code = code;
+    _learning = false;
+    _learned_dirty = true;
+    _learned_sequence++;
+}
+
+bool IRReceiverDriver::testLearnDecoded(uint8_t key_index, uint8_t protocol, uint64_t code) {
+    if (!startLearning(key_index)) return false;
+    return completeLearning(protocol, code);
+}
+#endif
+
 IREvent IRReceiverDriver::matchCode(uint8_t protocol, uint64_t code) {
     for (uint8_t i = 0; i < IR_KEY_COUNT; i++) {
         if (_protocols[i] == protocol && _codes[i] == code && _codes[i] != 0) {
@@ -166,6 +265,12 @@ IREvent IRReceiverDriver::matchCode(uint8_t protocol, uint64_t code) {
                 case IR_KEY_TIMER_2H:
                     ESP32BASE_LOG_D("IR", "Matched: TIMER_2H");
                     return IR_EVENT_TIMER_2H;
+                case IR_KEY_TIMER_4H:
+                    ESP32BASE_LOG_D("IR", "Matched: TIMER_4H");
+                    return IR_EVENT_TIMER_4H;
+                case IR_KEY_TIMER_8H:
+                    ESP32BASE_LOG_D("IR", "Matched: TIMER_8H");
+                    return IR_EVENT_TIMER_8H;
                 default:
                     return IR_EVENT_NONE;
             }

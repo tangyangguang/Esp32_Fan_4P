@@ -18,10 +18,7 @@ public:
     static void handleApiTimer();
     static void handleApiStop();
     static void handleApiConfig();
-    static void handleApiLogs();
-    static void handleApiReset();
     static void handleApiIrLearn();
-    static void handleApiIrStatus();
 
 private:
     static FanController* _controller;
