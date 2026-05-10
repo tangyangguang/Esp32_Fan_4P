@@ -32,7 +32,7 @@ static bool bootActionDone = false;
 static bool bootClearArmed = false;
 
 static void configureBaseWebBeforeBegin() {
-    Esp32BaseWeb::setDefaultAuth("admin", "admin123");
+    Esp32BaseWeb::setDefaultAuth("admin", "admin");
     Esp32BaseWeb::setDeviceName("ESP Fan");
     Esp32BaseWeb::setHomePath("/fan");
     Esp32BaseWeb::setHomeMode(Esp32BaseWeb::HOME_COMBINED);

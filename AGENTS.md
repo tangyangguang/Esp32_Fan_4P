@@ -25,7 +25,7 @@
 - Esp32Base Web 业务入口最终 API 为 `Esp32BaseWeb::addPage(path, title, handler)`；本项目显式注册 `/fan -> Fan`、`/config -> Settings`。
 - 不保留旧 `addPage(path, handler)` 写法。
 - 不在本项目保留临时 `/app` 应用入口页；业务入口由 Esp32Base 首页和内置顶栏展示。
-- Web Auth 使用 Esp32Base 内置持久化能力，本项目只设置默认 `Esp32BaseWeb::setDefaultAuth("admin", "admin123")`。
+- Web Auth 使用 Esp32Base 内置持久化能力，本项目只设置默认 `Esp32BaseWeb::setDefaultAuth("admin", "admin")`。
 - 本项目不保存 `fan/web_pass`，不维护应用侧密码修改逻辑；账号密码修改统一使用 `/esp32base/auth`。
 - Web Auth 持久化使用 `eb_web.auth_user` / `eb_web.auth_pass` 明文；INFO 日志输出 WiFi 和 Web Auth 明文凭据是调试设计。
 - Esp32Base Health 普通 tick 日志应是 DEBUG，默认 30 分钟最多一次；超过 `ESP32BASE_HEALTH_LOOP_WARN_MS` 才 WARN。
@@ -57,7 +57,7 @@
 - 当前设备局域网 IP 曾验证为 `192.168.2.112`，但后续应以实际状态为准。
 - `esp32-fan.local` 可用但 macOS 下首次解析可能较慢；直接 IP 访问更适合自动化验证。
 - 上传速率固定为 `115200`，此前 `921600` 在该串口下不稳定。
-- Web 默认账号为 `admin`，密码来自 NVS；常见默认值为 `admin123`，但测试时应根据当前设备实际密码验证。
+- Web 默认账号为 `admin`，密码来自 NVS；默认值为 `admin`，但测试时应根据当前设备实际密码验证。
 - OTA 验证优先使用 `/esp32base/ota`，上传 `.pio/build/esp32dev/firmware.bin`。
 - BOOT/GPIO0 长按 1 秒用于清 WiFi；这一步需要人工按键，不应通过软件臆测完成。
 - PWM 25 kHz 和占空比必须用示波器或逻辑分析仪验证。

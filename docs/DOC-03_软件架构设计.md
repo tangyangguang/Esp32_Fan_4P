@@ -107,7 +107,7 @@ Infrastructure
 ## 6. 初始化顺序
 
 1. 设置固件信息和 hostname。
-2. 调用 `Esp32BaseWeb::setDefaultAuth("admin", "admin123")`，并设置设备名、业务首页和系统导航模式。
+2. 调用 `Esp32BaseWeb::setDefaultAuth("admin", "admin")`，并设置设备名、业务首页和系统导航模式。
 3. 注册 `/fan`、`/config` 和 `/api/*` 路由；`/fan`、`/config` 通过 `addPage(path, title, handler)` 进入基础库导航。
 4. 调用 `Esp32Base::begin()`。
 5. 启用文件日志和配置审计。

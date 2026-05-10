@@ -76,14 +76,13 @@ pio device monitor -e esp32dev
 - `pio test -e native` 通过。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
 - 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
-- 设备当前未连接局域网，本机不在 ESP32 AP 网段，`192.168.4.1` 暂无法从本机访问；需要重新配网后继续 Web/API 实机验证。
 - 用户完成 AP 配网后，`esp32-fan.local` 解析到 `192.168.2.112`，`/esp32base/api/status` 返回 `profile=FULL`、`wifi.connected=true`。
 - 直接访问 `192.168.2.112` 时，`/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop` 均已通过实机请求验证。
 - 已通过 `/esp32base/ota` 上传同版本固件，OTA 后基础库状态、业务 API、`/fan` 和日志页恢复正常。
 - 已临时设置 `sleep_wait=3` 验证 WiFi power save，设备进入 `sleep` 后 `/api/status` 仍可访问；验证后已恢复 `sleep_wait=60`。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
-- Web Auth 已迁移到 Esp32Base 内置持久化能力；本项目设置默认 `admin/admin123`，账号密码修改入口为 `/esp32base/auth`。
-- 历史实机中设备持久化 Auth 用户曾为 `root`，`root/admin` 可访问业务页和基础库页；本轮未能重新烧录验证。
+- Web Auth 已迁移到 Esp32Base 内置持久化能力；本项目设置默认 `admin/admin`，账号密码修改入口为 `/esp32base/auth`。
+- 当前设备持久化 Auth 已通过 Esp32Base 内置页面改为 `admin/admin`，旧 `admin/admin123` 已返回 401。
 - 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出，默认 30 分钟最多一次。
 - 新版 Esp32Base NTP 未同步状态已降噪，不再周期性输出 `ntp_sync_pending` WARN。
 - `esp32-fan.local` 首次 curl 访问约有 5 秒解析等待；直接 IP 访问业务状态接口约 0.36 秒，判断为客户端侧 mDNS 解析延迟，不是 Web handler 阻塞。

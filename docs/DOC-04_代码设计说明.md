@@ -27,7 +27,7 @@
 | `run_s` | int | 0 | 累计运行秒数 |
 | `ir_0..7` | string | 空 | 红外学习码，格式为 `protocol:hexCode` |
 
-应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin123")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
+应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
 
 ## 2. 运行状态
 
@@ -177,10 +177,9 @@ API：
 - `pio test -e native` 通过，7 个测试用例成功。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
 - 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
-- 设备当前未连接局域网，本机不在 ESP32 AP 网段，`192.168.4.1` 暂无法从本机访问；需要重新配网后继续 Web/API 实机验证。
-- 历史实机中设备持久化 Auth 用户曾为 `root`，实测 `root/admin` 可访问业务页和基础库页。
+- 当前设备持久化 Auth 已通过 Esp32Base 内置页面改为 `admin/admin`，旧 `admin/admin123` 已返回 401。
 - AP 配网后设备 IP 为 `192.168.2.112`，`esp32-fan.local` 可解析。
-- `http://192.168.2.112/api/status` 返回风扇状态、IP、RSSI、NTP 时间。
+- `http://192.168.2.112/api/status` 返回风扇状态、IP、RSSI、网络状态。
 - `http://192.168.2.112/fan` 和 `http://192.168.2.112/config` 页面可完整返回。
 - `POST http://192.168.2.112/api/speed speed=35`、`/api/timer seconds=60`、`/api/stop` 均返回成功。
 - `http://192.168.2.112/esp32base/api/status` 返回 Esp32Base Full profile、heap、flash、WiFi connected 状态。
