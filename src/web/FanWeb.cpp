@@ -497,14 +497,6 @@ void FanWeb::handleApiConfig() {
     if (Esp32BaseWeb::isMethod(Esp32BaseWeb::METHOD_POST)) {
         ESP32BASE_LOG_I("FanWeb", "user_action save_config");
         uint8_t changed = 0;
-        bool has_min_speed = false;
-        bool has_soft_start = false;
-        bool has_soft_stop = false;
-        bool has_block_detect = false;
-        bool has_sleep_wait = false;
-        bool has_led_flash_ms = false;
-        bool has_runtime_save_min = false;
-        bool has_auto_restore = false;
         uint8_t min_speed = _controller->getMinEffectiveSpeed();
         uint16_t soft_start = _controller->getSoftStartTime();
         uint16_t soft_stop = _controller->getSoftStopTime();
@@ -521,7 +513,6 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             min_speed = static_cast<uint8_t>(parsed);
-            has_min_speed = true;
         }
         if (Esp32BaseWeb::hasParam("soft_start")) {
             uint32_t parsed = 0;
@@ -530,7 +521,6 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             soft_start = static_cast<uint16_t>(parsed);
-            has_soft_start = true;
         }
         if (Esp32BaseWeb::hasParam("soft_stop")) {
             uint32_t parsed = 0;
@@ -539,7 +529,6 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             soft_stop = static_cast<uint16_t>(parsed);
-            has_soft_stop = true;
         }
         if (Esp32BaseWeb::hasParam("block_detect")) {
             uint32_t parsed = 0;
@@ -548,7 +537,6 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             block_detect = static_cast<uint16_t>(parsed);
-            has_block_detect = true;
         }
         if (Esp32BaseWeb::hasParam("sleep_wait")) {
             uint32_t parsed = 0;
@@ -557,7 +545,6 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             sleep_wait = static_cast<uint16_t>(parsed);
-            has_sleep_wait = true;
         }
         if (Esp32BaseWeb::hasParam("led_flash_ms")) {
             uint32_t parsed = 0;
@@ -566,7 +553,6 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             led_flash_ms = static_cast<uint16_t>(parsed);
-            has_led_flash_ms = true;
         }
         if (Esp32BaseWeb::hasParam("runtime_save_min")) {
             uint32_t parsed = 0;
@@ -575,7 +561,6 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             runtime_save_min = static_cast<uint8_t>(parsed);
-            has_runtime_save_min = true;
         }
         if (Esp32BaseWeb::hasParam("auto_restore")) {
             uint32_t parsed = 0;
@@ -584,65 +569,22 @@ void FanWeb::handleApiConfig() {
                 return;
             }
             auto_restore = parsed != 0;
-            has_auto_restore = true;
         }
 
-        bool write_ok = true;
-        if (has_min_speed && min_speed != _controller->getMinEffectiveSpeed()) {
-            bool applied = _controller->setMinEffectiveSpeed(min_speed);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-        if (has_soft_start && soft_start != _controller->getSoftStartTime()) {
-            bool applied = _controller->setSoftStartTime(soft_start);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-        if (has_soft_stop && soft_stop != _controller->getSoftStopTime()) {
-            bool applied = _controller->setSoftStopTime(soft_stop);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-        if (has_block_detect && block_detect != _controller->getBlockDetectTime()) {
-            bool applied = _controller->setBlockDetectTime(block_detect);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-        if (has_sleep_wait && sleep_wait != _controller->getSleepWaitTime()) {
-            bool applied = _controller->setSleepWaitTime(sleep_wait);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-        if (has_led_flash_ms && led_flash_ms != _controller->getLedFlashDuration()) {
-            bool applied = _controller->setLedFlashDuration(led_flash_ms);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-        if (has_runtime_save_min && runtime_save_min != _controller->getRuntimeSaveIntervalMinutes()) {
-            bool applied = _controller->setRuntimeSaveIntervalMinutes(runtime_save_min);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-        if (has_auto_restore && auto_restore != _controller->getAutoRestore()) {
-            bool applied = _controller->setAutoRestore(auto_restore);
-            write_ok = applied && write_ok;
-            if (applied) changed++;
-        }
-
-        bool flushed = Esp32BaseConfig::flushAll();
-        bool ok = write_ok && flushed;
+        bool ok = _controller->applyConfig(min_speed, soft_start, soft_stop, block_detect,
+                                           sleep_wait, led_flash_ms, runtime_save_min,
+                                           auto_restore, &changed);
         if (ok && changed > 0) {
             _controller->notifyUserAction();
         }
-        ESP32BASE_LOG_I("FanWeb", "config_save_complete changed=%u write_ok=%u flushed=%u",
-                          (unsigned)changed, write_ok ? 1U : 0U, flushed ? 1U : 0U);
+        ESP32BASE_LOG_I("FanWeb", "config_save_complete changed=%u ok=%u",
+                          (unsigned)changed, ok ? 1U : 0U);
         char buf[320];
         snprintf(buf, sizeof(buf),
-            "{\"ok\":%s,\"changed\":%u,\"flushed\":%s,\"data\":{\"min_effective_speed\":%d,\"soft_start\":%d,\"soft_stop\":%d,"
+            "{\"ok\":%s,\"changed\":%u,\"data\":{\"min_effective_speed\":%d,\"soft_start\":%d,\"soft_stop\":%d,"
             "\"block_detect\":%d,\"sleep_wait\":%d,\"led_flash_ms\":%d,\"runtime_save_min\":%u,\"auto_restore\":%s}}",
             ok ? "true" : "false",
             (unsigned)changed,
-            flushed ? "true" : "false",
             _controller->getMinEffectiveSpeed(),
             _controller->getSoftStartTime(),
             _controller->getSoftStopTime(),

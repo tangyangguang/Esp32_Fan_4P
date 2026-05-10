@@ -723,6 +723,30 @@ void test_controller_min_speed_change_reapplies_low_target() {
     TEST_ASSERT_EQUAL(25, controller.getCurrentSpeed());
 }
 
+void test_controller_runtime_save_failure_retries_next_tick() {
+    Esp32BaseConfig::setInt("fan", "soft_on", 0);
+    Esp32BaseConfig::setInt("fan", "blk_ms", 60000);
+
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    makeController(fan, buttons, led, ir, controller);
+    TEST_ASSERT_TRUE(controller.setRuntimeSaveIntervalMinutes(1));
+    TEST_ASSERT_TRUE(controller.setSpeed(40));
+
+    strcpy(g_failSetIntKey, "run_s");
+    g_mockMillis = 61000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(0, Esp32BaseConfig::getInt("fan", "run_s", 0));
+
+    g_failSetIntKey[0] = '\0';
+    g_mockMillis = 62000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(62, Esp32BaseConfig::getInt("fan", "run_s", 0));
+}
+
 void test_controller_ignores_negative_persisted_values() {
     Esp32BaseConfig::setInt("fan", "min_spd", -1);
     Esp32BaseConfig::setInt("fan", "soft_on", 0);
@@ -835,6 +859,20 @@ void test_web_config_write_failure_returns_error_without_applying() {
     TEST_ASSERT_EQUAL(10, controller.getMinEffectiveSpeed());
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"changed\":0"));
+
+    g_failSetIntKey[0] = '\0';
+    g_flushFail = true;
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("min_speed", "25");
+    webSetParam("soft_start", "2500");
+    FanWeb::handleApiConfig();
+
+    TEST_ASSERT_EQUAL(500, g_lastCode);
+    TEST_ASSERT_EQUAL(10, controller.getMinEffectiveSpeed());
+    TEST_ASSERT_EQUAL(1000, controller.getSoftStartTime());
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"changed\":0"));
 }
 
 void test_web_runtime_save_failure_returns_error() {
@@ -943,6 +981,7 @@ int main(int, char**) {
     RUN_TEST(test_controller_ir_learn_save_failure_restores_previous_code);
     RUN_TEST(test_controller_auto_restore_enable_saves_current_state);
     RUN_TEST(test_controller_min_speed_change_reapplies_low_target);
+    RUN_TEST(test_controller_runtime_save_failure_retries_next_tick);
     RUN_TEST(test_controller_ignores_negative_persisted_values);
     RUN_TEST(test_controller_error_recovery_window_not_reset_by_repeated_speed);
     RUN_TEST(test_controller_factory_reset_clears_app_and_library_namespaces);

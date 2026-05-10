@@ -58,6 +58,7 @@
 - ISR 只递增 `volatile` 计数，不写日志，不访问配置。
 - 默认按 2 pulse/revolution 计算 RPM。
 - PWM 分辨率默认 10 bit，频率默认 25 kHz。
+- 当前产品只支持单风扇实例；TACH ISR 通过 `FanDriver::s_instance` 分发到唯一实例。若未来支持多风扇，需要改为 interrupt arg 或实例映射。
 - Arduino ESP32 Core 2.x 使用 `ledcSetup/ledcAttachPin`；代码已为 Core 3.x 增加 `ledcAttach` 条件编译分支，但当前项目仍以 Core 2.x 构建为准，Core 3.x 需独立构建和 PWM 实测确认。
 
 ## 4. FanController 设计

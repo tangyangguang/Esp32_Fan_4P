@@ -61,6 +61,10 @@ bool cfgGetBool(const char* key, bool def = false) {
     return Esp32BaseConfig::getBool(CFG_NS, key, def);
 }
 
+bool cfgSetBoolDeferred(const char* key, bool value) {
+    return Esp32BaseConfig::setBoolDeferred(CFG_NS, key, value);
+}
+
 bool parseIRCodeEntry(const char* value, uint8_t* protocol, uint64_t* code) {
     if (!value || !protocol || !code) return false;
 
@@ -199,14 +203,9 @@ bool FanController::isSleeping() const { return _is_sleeping; }
 bool FanController::getAutoRestore() const { return _auto_restore; }
 
 bool FanController::setAutoRestore(bool enable) {
-    bool ok = cfgSetBool(KEY_AUTO_RESTORE, enable);
-    if (!ok) return false;
-
-    _auto_restore = enable;
-    if (_auto_restore) {
-        ok = _saveRuntimeState(true);
-    }
-    return ok;
+    return applyConfig(_min_effective_speed, _soft_start_time, _soft_stop_time,
+                       _block_detect_time, _sleep_wait_time, _led_flash_duration_ms,
+                       _runtime_save_interval_min, enable);
 }
 
 bool FanController::setSpeed(uint8_t speed) {
@@ -360,18 +359,9 @@ void FanController::notifyUserAction() {
 uint8_t FanController::getMinEffectiveSpeed() const { return _min_effective_speed; }
 
 bool FanController::setMinEffectiveSpeed(uint8_t speed) {
-    if (speed > 50) speed = 50;
-    if (!cfgSetInt(KEY_MIN_SPEED, speed)) return false;
-
-    _min_effective_speed = speed;
-    _fan.setMinEffectiveSpeed(_min_effective_speed);
-    bool ok = true;
-    if (_target_speed > 0 && _target_speed < _min_effective_speed) {
-        _target_speed = _min_effective_speed;
-        _syncGearFromSpeed(_target_speed);
-        ok = _applySpeed(_target_speed, true) && ok;
-    }
-    return ok;
+    return applyConfig(speed, _soft_start_time, _soft_stop_time, _block_detect_time,
+                       _sleep_wait_time, _led_flash_duration_ms,
+                       _runtime_save_interval_min, _auto_restore);
 }
 
 uint16_t FanController::getSoftStartTime() const {
@@ -379,12 +369,9 @@ uint16_t FanController::getSoftStartTime() const {
 }
 
 bool FanController::setSoftStartTime(uint16_t ms) {
-    if (ms > 10000) ms = 10000;
-    if (!cfgSetInt(KEY_SOFT_START, static_cast<int32_t>(ms))) return false;
-
-    _soft_start_time = ms;
-    _fan.setSoftStartTime(ms);
-    return true;
+    return applyConfig(_min_effective_speed, ms, _soft_stop_time, _block_detect_time,
+                       _sleep_wait_time, _led_flash_duration_ms,
+                       _runtime_save_interval_min, _auto_restore);
 }
 
 uint16_t FanController::getSoftStopTime() const {
@@ -392,12 +379,9 @@ uint16_t FanController::getSoftStopTime() const {
 }
 
 bool FanController::setSoftStopTime(uint16_t ms) {
-    if (ms > 10000) ms = 10000;
-    if (!cfgSetInt(KEY_SOFT_STOP, static_cast<int32_t>(ms))) return false;
-
-    _soft_stop_time = ms;
-    _fan.setSoftStopTime(ms);
-    return true;
+    return applyConfig(_min_effective_speed, _soft_start_time, ms, _block_detect_time,
+                       _sleep_wait_time, _led_flash_duration_ms,
+                       _runtime_save_interval_min, _auto_restore);
 }
 
 uint16_t FanController::getBlockDetectTime() const {
@@ -405,24 +389,17 @@ uint16_t FanController::getBlockDetectTime() const {
 }
 
 bool FanController::setBlockDetectTime(uint16_t ms) {
-    if (ms < 100) ms = 100;
-    if (ms > 5000) ms = 5000;
-    if (!cfgSetInt(KEY_BLOCK_DETECT, static_cast<int32_t>(ms))) return false;
-
-    _block_detect_time = ms;
-    _fan.setBlockDetectTime(ms);
-    return true;
+    return applyConfig(_min_effective_speed, _soft_start_time, _soft_stop_time, ms,
+                       _sleep_wait_time, _led_flash_duration_ms,
+                       _runtime_save_interval_min, _auto_restore);
 }
 
 uint16_t FanController::getSleepWaitTime() const { return _sleep_wait_time; }
 
 bool FanController::setSleepWaitTime(uint16_t seconds) {
-    if (seconds < 1) seconds = 1;
-    if (seconds > 3600) seconds = 3600;
-    if (!cfgSetInt(KEY_SLEEP_WAIT, seconds)) return false;
-
-    _sleep_wait_time = seconds;
-    return true;
+    return applyConfig(_min_effective_speed, _soft_start_time, _soft_stop_time,
+                       _block_detect_time, seconds, _led_flash_duration_ms,
+                       _runtime_save_interval_min, _auto_restore);
 }
 
 uint16_t FanController::getLedFlashDuration() const {
@@ -430,12 +407,9 @@ uint16_t FanController::getLedFlashDuration() const {
 }
 
 bool FanController::setLedFlashDuration(uint16_t ms) {
-    if (ms > 2000) ms = 2000;
-    if (!cfgSetInt(KEY_LED_FLASH_MS, static_cast<int32_t>(ms))) return false;
-
-    _led_flash_duration_ms = ms;
-    _led.setFlashDuration(_led_flash_duration_ms);
-    return true;
+    return applyConfig(_min_effective_speed, _soft_start_time, _soft_stop_time,
+                       _block_detect_time, _sleep_wait_time, ms,
+                       _runtime_save_interval_min, _auto_restore);
 }
 
 uint8_t FanController::getRuntimeSaveIntervalMinutes() const {
@@ -443,11 +417,119 @@ uint8_t FanController::getRuntimeSaveIntervalMinutes() const {
 }
 
 bool FanController::setRuntimeSaveIntervalMinutes(uint8_t minutes) {
-    if (minutes < 1) minutes = 1;
-    if (minutes > 60) minutes = 60;
-    if (!cfgSetInt(KEY_RUNTIME_SAVE_MIN, static_cast<int32_t>(minutes))) return false;
+    return applyConfig(_min_effective_speed, _soft_start_time, _soft_stop_time,
+                       _block_detect_time, _sleep_wait_time, _led_flash_duration_ms,
+                       minutes, _auto_restore);
+}
 
-    _runtime_save_interval_min = minutes;
+bool FanController::applyConfig(uint8_t min_speed, uint16_t soft_start, uint16_t soft_stop,
+                                uint16_t block_detect, uint16_t sleep_wait,
+                                uint16_t led_flash_ms, uint8_t runtime_save_min,
+                                bool auto_restore, uint8_t* changed) {
+    if (min_speed > 50) min_speed = 50;
+    if (soft_start > 10000) soft_start = 10000;
+    if (soft_stop > 10000) soft_stop = 10000;
+    if (block_detect < 100) block_detect = 100;
+    if (block_detect > 5000) block_detect = 5000;
+    if (sleep_wait < 1) sleep_wait = 1;
+    if (sleep_wait > 3600) sleep_wait = 3600;
+    if (led_flash_ms > 2000) led_flash_ms = 2000;
+    if (runtime_save_min < 1) runtime_save_min = 1;
+    if (runtime_save_min > 60) runtime_save_min = 60;
+
+    uint8_t count = 0;
+    bool ok = true;
+    if (min_speed != _min_effective_speed) {
+        ok = cfgSetIntDeferred(KEY_MIN_SPEED, static_cast<int32_t>(min_speed)) && ok;
+        count++;
+    }
+    if (soft_start != _soft_start_time) {
+        ok = cfgSetIntDeferred(KEY_SOFT_START, static_cast<int32_t>(soft_start)) && ok;
+        count++;
+    }
+    if (soft_stop != _soft_stop_time) {
+        ok = cfgSetIntDeferred(KEY_SOFT_STOP, static_cast<int32_t>(soft_stop)) && ok;
+        count++;
+    }
+    if (block_detect != _block_detect_time) {
+        ok = cfgSetIntDeferred(KEY_BLOCK_DETECT, static_cast<int32_t>(block_detect)) && ok;
+        count++;
+    }
+    if (sleep_wait != _sleep_wait_time) {
+        ok = cfgSetIntDeferred(KEY_SLEEP_WAIT, static_cast<int32_t>(sleep_wait)) && ok;
+        count++;
+    }
+    if (led_flash_ms != _led_flash_duration_ms) {
+        ok = cfgSetIntDeferred(KEY_LED_FLASH_MS, static_cast<int32_t>(led_flash_ms)) && ok;
+        count++;
+    }
+    if (runtime_save_min != _runtime_save_interval_min) {
+        ok = cfgSetIntDeferred(KEY_RUNTIME_SAVE_MIN, static_cast<int32_t>(runtime_save_min)) && ok;
+        count++;
+    }
+    if (auto_restore != _auto_restore) {
+        ok = cfgSetBoolDeferred(KEY_AUTO_RESTORE, auto_restore) && ok;
+        count++;
+    }
+
+    uint8_t next_target = _target_speed;
+    if (next_target > 0 && next_target < min_speed) {
+        next_target = min_speed;
+    }
+    const bool target_changed = next_target != _target_speed;
+    if (target_changed && auto_restore) {
+        ok = cfgSetIntDeferred(KEY_LAST_SPEED, next_target) && ok;
+        ok = cfgSetIntDeferred(KEY_LAST_TIMER, static_cast<int32_t>(_timer_remaining)) && ok;
+    } else if (auto_restore && auto_restore != _auto_restore) {
+        ok = cfgSetIntDeferred(KEY_LAST_SPEED, _target_speed) && ok;
+        ok = cfgSetIntDeferred(KEY_LAST_TIMER, static_cast<int32_t>(_timer_remaining)) && ok;
+    }
+    if (count > 0 || target_changed) {
+        ok = cfgSetIntDeferred(KEY_RUN_DURATION, static_cast<int32_t>(_run_duration)) && ok;
+    }
+    if (!ok) {
+        if (changed) *changed = 0;
+        return false;
+    }
+    if (count == 0 && !target_changed) {
+        if (changed) *changed = 0;
+        return true;
+    }
+    if (!Esp32BaseConfig::flushAll()) {
+        if (changed) *changed = 0;
+        return false;
+    }
+
+    _min_effective_speed = min_speed;
+    _soft_start_time = soft_start;
+    _soft_stop_time = soft_stop;
+    _block_detect_time = block_detect;
+    _sleep_wait_time = sleep_wait;
+    _led_flash_duration_ms = led_flash_ms;
+    _runtime_save_interval_min = runtime_save_min;
+    _auto_restore = auto_restore;
+    _fan.setMinEffectiveSpeed(_min_effective_speed);
+    _fan.setSoftStartTime(_soft_start_time);
+    _fan.setSoftStopTime(_soft_stop_time);
+    _fan.setBlockDetectTime(_block_detect_time);
+    _led.setFlashDuration(_led_flash_duration_ms);
+
+    if (target_changed) {
+        const uint8_t old_target = _target_speed;
+        const uint8_t old_gear = _current_gear;
+        _target_speed = next_target;
+        _syncGearFromSpeed(_target_speed);
+        if (!_fan.isBlocked() && !_fan.setSpeed(_target_speed)) {
+            _target_speed = old_target;
+            _current_gear = old_gear;
+            ESP32BASE_LOG_W("FanCtrl", "Config min_speed reapply failed target=%u",
+                            static_cast<unsigned>(_target_speed));
+            if (changed) *changed = 0;
+            return false;
+        }
+    }
+
+    if (changed) *changed = count;
     return true;
 }
 
@@ -734,7 +816,6 @@ bool FanController::_saveRuntimeState(bool force) {
     // Throttle Flash writes. UI uses in-memory counters; persistence can lag to reduce wear.
     uint32_t interval_ms = static_cast<uint32_t>(_runtime_save_interval_min) * 60000UL;
     if (!force && now - _last_runtime_save_tick < interval_ms) return true;
-    _last_runtime_save_tick = now;
 
     bool ok = true;
     if (_auto_restore) {
@@ -744,6 +825,9 @@ bool FanController::_saveRuntimeState(bool force) {
     ok = cfgSetIntDeferred(KEY_RUN_DURATION, static_cast<int32_t>(_run_duration)) && ok;
     if (force) {
         ok = Esp32BaseConfig::flushAll() && ok;
+    }
+    if (ok) {
+        _last_runtime_save_tick = now;
     }
     return ok;
 }
@@ -857,16 +941,20 @@ bool FanController::_saveIRCode(uint8_t key_index) {
     bool ok = cfgSetStr(key, value);
     ok = Esp32BaseConfig::flushAll() && ok;
     if (!ok) {
+        bool rollback_ok = true;
         uint8_t oldProto = 0;
         uint64_t oldCode = 0;
         if (hadCurrent && parseIRCodeEntry(current, &oldProto, &oldCode)) {
             _ir.setKeyCode(key_index, oldProto, oldCode);
-            cfgSetStr(key, current);
+            rollback_ok = cfgSetStr(key, current);
         } else {
             _ir.setKeyCode(key_index, 0, 0);
-            cfgSetStr(key, "");
+            rollback_ok = cfgSetStr(key, "");
         }
-        Esp32BaseConfig::flushAll();
+        rollback_ok = Esp32BaseConfig::flushAll() && rollback_ok;
+        if (!rollback_ok) {
+            ESP32BASE_LOG_W("FanCtrl", "IR code rollback failed key=%u", key_index);
+        }
         return false;
     }
     return true;

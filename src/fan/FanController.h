@@ -66,6 +66,9 @@ public:
     bool setLedFlashDuration(uint16_t ms);
     uint8_t getRuntimeSaveIntervalMinutes() const;
     bool setRuntimeSaveIntervalMinutes(uint8_t minutes);
+    bool applyConfig(uint8_t min_speed, uint16_t soft_start, uint16_t soft_stop,
+                     uint16_t block_detect, uint16_t sleep_wait, uint16_t led_flash_ms,
+                     uint8_t runtime_save_min, bool auto_restore, uint8_t* changed = nullptr);
 
 private:
     void _handleIdle();
