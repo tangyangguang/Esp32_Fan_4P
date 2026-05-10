@@ -18,6 +18,7 @@ public:
 struct decode_results {
     uint8_t decode_type;
     uint64_t value;
+    bool repeat;
 };
 
 #endif

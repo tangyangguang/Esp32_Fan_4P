@@ -64,6 +64,7 @@ StrEntry g_strs[12] = {};
 bool g_configReady = false;
 bool g_wifiConnected = true;
 bool g_wifiPowerSave = false;
+bool g_libraryNamespacesCleared = false;
 char g_authUser[32] = "admin";
 char g_authPass[32] = "admin";
 bool g_authEnabled = true;
@@ -207,7 +208,10 @@ bool Esp32BaseConfig::clearNamespace(const char* ns) {
     for (auto& item : g_strs) if (item.used && strcmp(item.ns, ns) == 0) item.used = false;
     return true;
 }
-bool Esp32BaseConfig::clearLibraryNamespaces() { return true; }
+bool Esp32BaseConfig::clearLibraryNamespaces() {
+    g_libraryNamespacesCleared = true;
+    return true;
+}
 void Esp32BaseConfig::enableConfigAudit(bool) {}
 void Esp32BaseConfig::enableConfigReadAudit(bool) {}
 
@@ -310,6 +314,7 @@ void setUp() {
     g_configReady = false;
     g_wifiConnected = true;
     g_wifiPowerSave = false;
+    g_libraryNamespacesCleared = false;
     strcpy(g_authUser, "admin");
     strcpy(g_authPass, "admin");
     g_authEnabled = true;
@@ -378,13 +383,37 @@ void test_button_driver_short_press_and_both_long() {
     g_mockMillis = 130;
     TEST_ASSERT_EQUAL(BTN_ACCEL_SHORT, buttons.getEvent());
 
+    g_pinState[4] = LOW;
+    buttons.getEvent();
+    g_mockMillis = 200;
+    buttons.getEvent();
+    g_pinState[4] = HIGH;
+    buttons.getEvent();
+    g_mockMillis = 270;
+    TEST_ASSERT_EQUAL(BTN_DECEL_SHORT, buttons.getEvent());
+
     g_pinState[14] = LOW;
     g_pinState[4] = LOW;
     buttons.getEvent();
-    g_mockMillis = 260;
+    g_mockMillis = 340;
     buttons.getEvent();
     g_mockMillis = 5400;
     TEST_ASSERT_EQUAL(BTN_BOTH_LONG, buttons.getEvent());
+}
+
+void test_controller_factory_reset_clears_app_and_library_namespaces() {
+    Esp32BaseConfig::setInt("fan", "min_spd", 20);
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    makeController(fan, buttons, led, ir, controller);
+
+    TEST_ASSERT_TRUE(controller.resetFactory());
+    TEST_ASSERT_TRUE(ESP.restartCalled());
+    TEST_ASSERT_EQUAL(10, Esp32BaseConfig::getInt("fan", "min_spd", 10));
+    TEST_ASSERT_TRUE(g_libraryNamespacesCleared);
 }
 
 void test_controller_config_timer_restore_and_sleep() {
@@ -426,18 +455,32 @@ void test_controller_config_timer_restore_and_sleep() {
     TEST_ASSERT_TRUE(Esp32BaseWiFi::powerSave());
 }
 
-void test_controller_factory_reset_clears_app_namespace() {
-    Esp32BaseConfig::setInt("fan", "min_spd", 20);
+void test_controller_error_recovery_window_not_reset_by_repeated_speed() {
     FanDriver fan(5, 12);
     ButtonDriver buttons(14, 4);
     LedIndicator led(2, true);
     IRReceiverDriver ir(13);
     FanController controller(fan, buttons, led, ir);
     makeController(fan, buttons, led, ir, controller);
+    controller.setSoftStartTime(0);
+    controller.setBlockDetectTime(100);
 
-    TEST_ASSERT_TRUE(controller.resetFactory());
-    TEST_ASSERT_TRUE(ESP.restartCalled());
-    TEST_ASSERT_EQUAL(10, Esp32BaseConfig::getInt("fan", "min_spd", 10));
+    TEST_ASSERT_TRUE(controller.setSpeed(50));
+    g_mockMillis = 200;
+    controller.tick();
+    g_mockMillis = 350;
+    controller.tick();
+    TEST_ASSERT_EQUAL(SYS_ERROR, controller.getState());
+
+    TEST_ASSERT_TRUE(controller.setSpeed(50));
+    TEST_ASSERT_EQUAL(SYS_RECOVERING, controller.getState());
+    g_mockMillis = 450;
+    TEST_ASSERT_TRUE(controller.setSpeed(60));
+    TEST_ASSERT_EQUAL(SYS_RECOVERING, controller.getState());
+
+    g_mockMillis = 1000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(SYS_ERROR, controller.getState());
 }
 
 void test_web_api_speed_timer_config_and_ir() {
@@ -506,7 +549,8 @@ int main(int, char**) {
     RUN_TEST(test_fan_driver_rpm_and_block_detection);
     RUN_TEST(test_button_driver_short_press_and_both_long);
     RUN_TEST(test_controller_config_timer_restore_and_sleep);
-    RUN_TEST(test_controller_factory_reset_clears_app_namespace);
+    RUN_TEST(test_controller_error_recovery_window_not_reset_by_repeated_speed);
+    RUN_TEST(test_controller_factory_reset_clears_app_and_library_namespaces);
     RUN_TEST(test_web_api_speed_timer_config_and_ir);
     RUN_TEST(test_web_api_status);
     return UNITY_END();

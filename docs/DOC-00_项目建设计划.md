@@ -11,7 +11,7 @@
 ## 1. 建设原则
 
 - 业务功能对齐成熟项目 `/Users/tyg/dir/claude_dir/ESP12F_Fan_4P`。
-- 基础能力使用 `/Users/tyg/dir/claude_dir/Esp32Base`，默认启用 Full profile。
+- 基础能力使用相邻目录 `../Esp32Base`，默认启用 Full profile。
 - 项目文档先行，文档是后续实现和验收的基准。
 - 涉及 Esp32Base 能力缺口或 bug 时，输出完整提示词到 `docs/ESP32BASE_PROMPTS.md`，不在本项目长期打补丁。
 - 本项目按 Esp32Base 示例工程显式声明 Full profile 需要的 Arduino framework 库，避免 PlatformIO LDF 漏链。
@@ -22,11 +22,11 @@
 | --- | --- | --- |
 | 文档骨架 | 已完成 | README、DOC-00..04、Esp32Base 提示词 |
 | PlatformIO 环境 | 已引入 | `esp32dev`、`espressif32@6.9.0`、Arduino |
-| Esp32Base 引入 | 已引入 | `symlink:///Users/tyg/dir/claude_dir/Esp32Base` |
+| Esp32Base 引入 | 已引入 | `symlink://../Esp32Base` |
 | Full profile | 已配置 | `ESP32BASE_PROFILE_FULL` |
 | IR 依赖 | 已引入 | `crankyoldgit/IRremoteESP8266@^2.8.6` |
 | 编译状态 | 已通过 | `pio run -e esp32dev` 通过 |
-| 测试状态 | 已通过 | `pio test -e native`，7 个用例通过 |
+| 测试状态 | 已通过 | `pio test -e native`，8 个用例通过 |
 | 烧录状态 | 已通过 | `/dev/cu.usbserial-130`，115200 上传成功；`/dev/cu.usbserial-120` 是 ESP8266 |
 | Web OTA CLI | 已接入 | 使用 Esp32Base `scripts/esp32base_webota.py` 的 `webota` target |
 | 启动状态 | 已通过 | 进入 `ESP32-Config-65E4` 配网 AP，Web server ready |

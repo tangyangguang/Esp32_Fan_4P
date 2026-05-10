@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <IRrecv.h>
 
-static const uint16_t kCaptureBufferSize = 512;
-static const uint16_t kCaptureTimeout = 50;
-
 enum IREvent {
     IR_EVENT_NONE,
     IR_EVENT_SPEED_UP,

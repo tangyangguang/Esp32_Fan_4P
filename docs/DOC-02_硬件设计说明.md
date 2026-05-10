@@ -27,14 +27,15 @@
 | 风扇 TACH | GPIO26 | 输入 | 上拉输入，注意 TACH 多为开集电极 | FALLING 中断计数 |
 | 加速按键 | GPIO32 | 输入 | `INPUT_PULLUP`，按下接地 | RTC GPIO，输入稳定 |
 | 减速按键 | GPIO33 | 输入 | `INPUT_PULLUP`，按下接地 | RTC GPIO，输入稳定 |
-| 板载 LED | GPIO2 | 输出 | 依开发板而定 | 默认 active-low，可配置 |
+| 板载 LED | GPIO2 | 输出 | 依开发板而定；GPIO2 是 strapping pin，外接电路不得在启动时强拉低 | 默认 active-low，可配置 |
 | 红外接收 | GPIO27 | 输入 | 1838 输出接 GPIO，3.3 V 供电 | IRremoteESP8266 |
-| BOOT | GPIO0 | 输入 | 开发板 BOOT 键 | 长按清 WiFi |
+| BOOT | GPIO0 | 输入 | 开发板 BOOT 键 | 长按 5 秒清 WiFi |
 
 ## 3. GPIO 选择原则
 
 - 避免把风扇 PWM、TACH、红外等关键运行信号放在 ESP32 启动绑定位上。
 - GPIO0 仅复用为人工 BOOT/清 WiFi，不接外部长线。
+- GPIO2 仅按常见 DevKit 板载 LED 使用；若目标模组启动要求不同，应更换 LED GPIO 或调整外接电路，避免影响下载/启动。
 - GPIO34-39 仅输入且无内部上拉，不作为默认按键。
 - 实际硬件定版前必须按目标 ESP32 模组数据手册复核 strapping pin、ADC2/WiFi 冲突和外设复用。
 
@@ -54,6 +55,7 @@
 - TACH 需要上拉到 3.3 V，不能直接上拉到 12 V。
 - PWM 输入规格需按风扇数据手册确认；若要求 5 V/open-drain，应增加三极管/MOS 管适配。
 - 未接风扇时，非零输出会触发堵转保护，这是正常保护行为。
+- Arduino ESP32 Core 2.x 路径下 Fan PWM 使用 LEDC channel 0，LED 指示使用 channel 1；Esp32Base 后续如新增 LEDC 资源，应避免复用这两个 channel 或先提供统一分配能力。
 
 ## 5. 电源设计
 
@@ -81,4 +83,4 @@
 - TACH RPM：与外部转速计对照，误差 <= 5%。
 - WiFi power save：确认进入省电后 Web 仍可访问。
 - OTA：上传、失败回滚和日志观察。
-- BOOT 清 WiFi：长按 1 秒清凭证并进入配网。
+- BOOT 清 WiFi：长按 5 秒清凭证并进入配网。

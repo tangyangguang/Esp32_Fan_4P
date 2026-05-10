@@ -18,6 +18,7 @@ bool parseUintArg(const char* value, uint32_t min_value, uint32_t max_value, uin
         char c = *p;
         if (c < '0' || c > '9') return false;
         uint32_t digit = static_cast<uint32_t>(c - '0');
+        // Check before parsed = parsed * 10 + digit so malformed large inputs fail cleanly.
         if (parsed > (max_value - digit) / 10) return false;
         parsed = parsed * 10 + digit;
     }
@@ -165,13 +166,14 @@ void FanWeb::handleStatusPage() {
         case SYS_RUNNING: stateText = "Running"; break;
         case SYS_SLEEP: stateText = "Sleep"; break;
         case SYS_ERROR: stateText = blocked ? "Error / Blocked" : "Error"; break;
+        case SYS_RECOVERING: stateText = "Recovering"; break;
         default: break;
     }
     if (blocked && _controller->getState() != SYS_ERROR) {
         stateText = "Blocked";
     }
-    snprintf(buf, sizeof(buf), "<div class='stat state'><span>State</span><b id=st class=%s>%s</b></div>",
-             blocked ? "errtxt" : "", stateText);
+    snprintf(buf, sizeof(buf), "<div class='stat state'><span>State</span><b id=st%s>%s</b></div>",
+             blocked ? " class=errtxt" : "", stateText);
     Esp32BaseWeb::sendChunk(buf);
 
     // Speed
@@ -232,7 +234,7 @@ static const char CONFIG_PAGE_TOP[] PROGMEM =
     "<form class=panel onsubmit='saveCfg(this);return false'>"
     "<h3>Fan behavior</h3><div class=formgrid><div class=field><label>Min speed (%)</label><input type=number name=min_speed min=0 max=50 value='";
 static const char CONFIG_MIN_END[] PROGMEM = "'><div class=help>Low commands rise to this value.</div></div>"
-    "<div class=field><label>Sleep wait (s)</label><input type=number name=sleep_wait min=0 max=3600 value='";
+    "<div class=field><label>Sleep wait (s)</label><input type=number name=sleep_wait min=1 max=3600 value='";
 static const char CONFIG_SLEEP_END[] PROGMEM = "'><div class=help>Stopped this long before modem sleep.</div></div>"
     "<div class=field><label>Soft start (ms)</label><input type=number name=soft_start min=0 max=10000 value='";
 static const char CONFIG_START_END[] PROGMEM = "'><div class=help>Ramp up time.</div></div>"
@@ -260,9 +262,9 @@ static const char CONFIG_IR_END[] PROGMEM =
     "function applyCfg(d,f){if(!d)return;f.min_speed.value=d.min_effective_speed;f.sleep_wait.value=d.sleep_wait;f.soft_start.value=d.soft_start;f.soft_stop.value=d.soft_stop;f.block_detect.value=d.block_detect;f.led_flash_ms.value=d.led_flash_ms;f.runtime_save_min.value=d.runtime_save_min;f.auto_restore.value=d.auto_restore?1:0}"
     "function reloadCfg(f){fetch('/api/config').then(r=>r.json()).then(j=>{if(j.ok)applyCfg(j.data,f)})}"
     "function saveCfg(f){var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='Saving';setMsg('Saving...','muted');fetch('/api/config',{method:'POST',body:new URLSearchParams(new FormData(f))}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Save';if(x.ok&&x.j.ok){applyCfg(x.j.data,f);var n=x.j.changed||0;setMsg('Saved - '+(n?n+' changed':'no changes')+' - '+new Date().toLocaleTimeString(),'oktxt')}else{reloadCfg(f);setMsg(x.j&&x.j.error?x.j.error:'Save failed','errtxt')}}).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('Save failed: network error','errtxt')})}"
-    "function finishIr(i,n,seq,tok,retry){fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(d&&d.ir_learn_seq!=seq){var v='Protocol '+d.ir_last_protocol+' - '+d.ir_last_code;setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt');setTimeout(()=>location.reload(),2500)}else if(d&&d.ir_learning&&(retry||0)<2)setTimeout(()=>finishIr(i,n,seq,tok,(retry||0)+1),500);else setIr('Learn timeout - no valid signal','errtxt')}).catch(()=>{if(tok==irToken)setIr('Learn timeout - no valid signal','errtxt')})}"
-    "function showLearn(n){var l=irLeft();if(l<=0)return false;if(irDup>=0)setIr('Already assigned to '+irName(irDup)+'. Press a different key - '+l+'s','errtxt');else setIr('Learning '+n+' - '+l+'s','muted');return true}"
-    "function watchIr(i,n,seq,tok){if(tok!=irToken)return;if(!showLearn(n)){finishIr(i,n,seq,tok);return}fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(!d)return;if(d.ir_learn_seq!=seq){var v='Protocol '+d.ir_last_protocol+' - '+d.ir_last_code;setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt');setTimeout(()=>location.reload(),2500);return}if(!d.ir_learning){setIr('Learn timeout - no valid signal','errtxt');return}var nd=d.ir_duplicate_key<irNames.length?d.ir_duplicate_key:-1;if(nd>=0&&(nd!=irDup||d.ir_reject_seq!=irReject))hitIr(nd);irDup=nd;irReject=d.ir_reject_seq;setTimeout(()=>watchIr(i,n,seq,tok),500)}).catch(()=>{if(tok!=irToken)return;if(showLearn(n))setTimeout(()=>watchIr(i,n,seq,tok),500);else finishIr(i,n,seq,tok)})}"
+    "function finishIr(i,n,seq,tok,retry){fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(d&&d.ir_learn_seq!=seq){var v='Protocol '+d.ir_last_protocol+' - '+d.ir_last_code;setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt')}else if(d&&d.ir_learning&&(retry||0)<2)setTimeout(()=>finishIr(i,n,seq,tok,(retry||0)+1),500);else setIr('Learn timeout - no valid signal','errtxt')}).catch(()=>{if(tok==irToken)setIr('Learn timeout - no valid signal','errtxt')})}"
+    "function showLearn(n){var l=irLeft();if(l<=0)return false;if(irDup>=0)setIr('Already assigned to '+irName(irDup)+'. Clear that key first - '+l+'s','errtxt');else setIr('Learning '+n+' - '+l+'s','muted');return true}"
+    "function watchIr(i,n,seq,tok){if(tok!=irToken)return;if(!showLearn(n)){finishIr(i,n,seq,tok);return}fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(!d)return;if(d.ir_learn_seq!=seq){var v='Protocol '+d.ir_last_protocol+' - '+d.ir_last_code;setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt');return}if(!d.ir_learning){setIr('Learn timeout - no valid signal','errtxt');return}var nd=d.ir_duplicate_key<irNames.length?d.ir_duplicate_key:-1;if(nd>=0&&(nd!=irDup||d.ir_reject_seq!=irReject))hitIr(nd);irDup=nd;irReject=d.ir_reject_seq;setTimeout(()=>watchIr(i,n,seq,tok),500)}).catch(()=>{if(tok!=irToken)return;if(showLearn(n))setTimeout(()=>watchIr(i,n,seq,tok),500);else finishIr(i,n,seq,tok)})}"
     "function learn(i,n){irToken++;irDup=-1;irReject=0;var tok=irToken;setIr('Starting '+n+'...','muted');fetch('/api/ir/learn',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key_index='+i}).then(r=>r.json()).then(d=>{if(d.ok){irReject=d.rej_seq||0;irDeadline=Date.now()+d.timeout*1000;watchIr(i,n,d.seq,tok)}else setIr('Learn failed','errtxt')}).catch(()=>setIr('Learn failed: network error','errtxt'))}"
     "function clearIr(i,n){if(!confirm('Clear IR code for '+n+'?'))return;setIr('Clearing '+n+'...','muted');fetch('/api/ir/learn',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key_index='+i+'&clear=1'}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{if(x.ok&&x.j.ok){setIrRow(i,'Not learned','');setIr(x.j.changed?('Cleared '+n):('No code for '+n),x.j.changed?'oktxt':'muted');setTimeout(()=>location.reload(),600)}else setIr('Clear failed','errtxt')}).catch(()=>setIr('Clear failed: network error','errtxt'))}"
     "</script>";
@@ -362,7 +364,7 @@ void FanWeb::handleConfigPage() {
 void FanWeb::handleApiStatus() {
     if (!Esp32BaseWeb::checkAuth()) return;
 
-    char buf[1024];
+    char buf[2048];
     char clock[24];
     const char* stateStr;
     switch (_controller->getState()) {
@@ -370,6 +372,7 @@ void FanWeb::handleApiStatus() {
         case SYS_RUNNING: stateStr = "Running"; break;
         case SYS_SLEEP: stateStr = "Sleep"; break;
         case SYS_ERROR: stateStr = "Error"; break;
+        case SYS_RECOVERING: stateStr = "Recovering"; break;
         default: stateStr = "Unknown"; break;
     }
 
@@ -536,7 +539,7 @@ void FanWeb::handleApiConfig() {
         }
         if (Esp32BaseWeb::hasParam("sleep_wait")) {
             uint32_t parsed = 0;
-            if (!parseUintParam("sleep_wait", 0, 3600, &parsed)) {
+            if (!parseUintParam("sleep_wait", 1, 3600, &parsed)) {
                 Esp32BaseWeb::sendJson(400, "{\"ok\":false,\"error\":\"invalid sleep_wait\"}");
                 return;
             }

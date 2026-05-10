@@ -56,7 +56,7 @@ Infrastructure
 | --- | --- | --- |
 | main | `src/main.cpp` | Esp32Base Full profile 初始化、路由注册、BOOT 键清 WiFi |
 | FanDriver | `src/fan/FanDriver.*` | ESP32 LEDC PWM、TACH 中断、RPM、堵转、软启动/停止 |
-| ButtonDriver | `src/fan/ButtonDriver.*` | 双按键消抖、短按、双键长按 |
+| ButtonDriver | `src/fan/ButtonDriver.*` | 加速/减速按键消抖、短按事件和双键长按事件 |
 | LedIndicator | `src/fan/LedIndicator.*` | LED 档位亮度、闪烁、故障提示 |
 | IRReceiverDriver | `src/fan/IRReceiverDriver.*` | 红外解码、学习、匹配 |
 | FanController | `src/fan/FanController.*` | 核心状态机、配置、定时、断电恢复、低功耗策略 |
@@ -88,11 +88,11 @@ Infrastructure
 
 | 状态 | 含义 | 进入 | 退出 |
 | --- | --- | --- | --- |
-| `SYS_INIT` | 初始化 | 上电 | 初始化完成 |
 | `SYS_IDLE` | 空闲 | 停止/初始化完成 | 启动/休眠/故障 |
 | `SYS_RUNNING` | 运行 | 非零速度 | 停止/定时结束/堵转 |
 | `SYS_SLEEP` | 省电待机 | 停止且空闲超时 | 任意操作 |
 | `SYS_ERROR` | 故障 | 堵转 | 启动恢复尝试/重启 |
+| `SYS_RECOVERING` | 堵转恢复中 | 故障后重新设置非零速度 | RPM 恢复/恢复超时 |
 
 ### 5.2 风扇状态
 
@@ -123,7 +123,7 @@ platform = espressif32@6.9.0
 board = esp32dev
 framework = arduino
 lib_deps =
-    symlink:///Users/tyg/dir/claude_dir/Esp32Base
+    symlink://../Esp32Base
     WiFi
     DNSServer
     ESPmDNS
@@ -137,7 +137,7 @@ build_flags =
 
 `src/deps_esp32base_full.cpp` 用于锚定 PlatformIO LDF，使 Full profile 所需的 framework 库参与链接。当前 `pio run -e esp32dev` 已通过。
 
-命令行 Web OTA 使用 Esp32Base 提供的 `scripts/esp32base_webota.py` 注册 `webota` target。本项目在 `platformio.ini` 中通过 `extra_scripts` 引入该脚本，并用 `custom_esp32base_webota_host/user/password` 指向当前设备和认证信息。
+命令行 Web OTA 使用相邻目录 `../Esp32Base/scripts/esp32base_webota.py` 注册 `webota` target。本项目在 `platformio.ini` 中通过 `extra_scripts` 引入该脚本，并用 `custom_esp32base_webota_host/user/password` 指向当前设备和认证信息。
 
 ## 8. 架构风险
 

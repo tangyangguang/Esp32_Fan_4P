@@ -10,6 +10,8 @@
 
 ## 已完成基础库反馈记录
 
+以下为已完成项的简记；新增未处理提示词必须按文末模板填写。
+
 - Esp32Base Web 已支持业务入口最终 API：`Esp32BaseWeb::addPage(path, title, handler)`。本项目使用 `/fan -> Fan`、`/config -> Settings` 显式注册业务入口。
 - Esp32Base Web 已支持内置持久化 Auth、`/esp32base/auth`、业务优先首页和系统导航配置；持久化字段为明文 `eb_web.auth_user` / `eb_web.auth_pass`。本项目已删除应用侧 `fan/web_pass`，改为设置默认 `admin/admin` 并使用基础库 Auth 页面修改凭据。
 - Esp32Base Health 已调整：普通 tick 使用 DEBUG，默认 30 分钟最多一次；`ESP32BASE_HEALTH_LOOP_WARN_MS` 默认 3000ms，超过阈值才输出 WARN `health loop_slow ...`。

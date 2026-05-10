@@ -81,7 +81,7 @@ FanController::FanController(FanDriver& fan, ButtonDriver& btn, LedIndicator& le
     , _btn(btn)
     , _led(led)
     , _ir(ir)
-    , _state(SYS_INIT)
+    , _state(SYS_IDLE)
     , _current_gear(0)
     , _target_speed(0)
     , _timer_remaining(0)
@@ -98,7 +98,6 @@ FanController::FanController(FanDriver& fan, ButtonDriver& btn, LedIndicator& le
     , _runtime_save_interval_min(1)
     , _min_effective_speed(10)
     , _is_sleeping(false)
-    , _sleep_entry_tick(0)
     , _auto_restore(true)
     , _recovery_start_tick(0)
     , _recovery_attempting(false)
@@ -151,9 +150,6 @@ void FanController::tick() {
     _fan.tick();
 
     switch (_state) {
-        case SYS_INIT:
-            _handleInit();
-            break;
         case SYS_IDLE:
             _handleIdle();
             break;
@@ -165,6 +161,9 @@ void FanController::tick() {
             break;
         case SYS_ERROR:
             _handleError();
+            break;
+        case SYS_RECOVERING:
+            _handleRecovering();
             break;
         default:
             _state = SYS_ERROR;
@@ -197,8 +196,10 @@ void FanController::setAutoRestore(bool enable) {
 
 bool FanController::setSpeed(uint8_t speed) {
     _last_operation_tick = millis();
-    _is_sleeping = false;
-    Esp32BaseWiFi::setPowerSave(false);
+    if (_is_sleeping) {
+        _is_sleeping = false;
+        Esp32BaseWiFi::setPowerSave(false);
+    }
 
     if (speed > 100) speed = 100;
     if (speed > 0 && speed < _min_effective_speed) {
@@ -208,13 +209,16 @@ bool FanController::setSpeed(uint8_t speed) {
     _target_speed = speed;
     _syncGearFromSpeed(speed);
 
-    if (_state == SYS_ERROR) {
+    if (_state == SYS_ERROR || _state == SYS_RECOVERING) {
         if (speed == 0) {
             return stop();
         }
-        _fan.resetBlock();
-        _recovery_attempting = true;
-        _recovery_start_tick = millis();
+        if (!_recovery_attempting) {
+            _fan.resetBlock();
+            _recovery_attempting = true;
+            _recovery_start_tick = millis();
+        }
+        _state = SYS_RECOVERING;
         _fan.setSpeed(speed);
         _saveRuntimeState(true);
     } else {
@@ -232,8 +236,10 @@ bool FanController::setTimer(uint32_t seconds) {
     _timer_remaining = seconds;
     _last_timer_tick = millis();
     _last_operation_tick = millis();
-    _is_sleeping = false;
-    Esp32BaseWiFi::setPowerSave(false);
+    if (_is_sleeping) {
+        _is_sleeping = false;
+        Esp32BaseWiFi::setPowerSave(false);
+    }
     _saveRuntimeState(true);
 
     if (seconds > 0) {
@@ -247,13 +253,15 @@ bool FanController::setTimer(uint32_t seconds) {
 
 bool FanController::stop() {
     _last_operation_tick = millis();
-    _is_sleeping = false;
-    Esp32BaseWiFi::setPowerSave(false);
+    if (_is_sleeping) {
+        _is_sleeping = false;
+        Esp32BaseWiFi::setPowerSave(false);
+    }
     _timer_remaining = 0;
     _target_speed = 0;
     _current_gear = 0;
     _recovery_attempting = false;
-    if (_state == SYS_ERROR || _fan.isBlocked()) {
+    if (_state == SYS_ERROR || _state == SYS_RECOVERING || _fan.isBlocked()) {
         _fan.resetBlock();
         _state = SYS_IDLE;
     }
@@ -269,6 +277,7 @@ bool FanController::resetFactory() {
     ok = Esp32BaseConfig::flushAll() && ok;
     if (!ok) {
         ESP32BASE_LOG_E("FanCtrl", "Factory reset failed: config clear failed");
+        return false;
     }
     ESP.restart();
     return true;
@@ -341,6 +350,7 @@ void FanController::setBlockDetectTime(uint16_t ms) {
 uint16_t FanController::getSleepWaitTime() const { return _sleep_wait_time; }
 
 void FanController::setSleepWaitTime(uint16_t seconds) {
+    if (seconds < 1) seconds = 1;
     if (seconds > 3600) seconds = 3600;
     _sleep_wait_time = seconds;
     cfgSetInt(KEY_SLEEP_WAIT, _sleep_wait_time);
@@ -367,8 +377,6 @@ void FanController::setRuntimeSaveIntervalMinutes(uint8_t minutes) {
     _runtime_save_interval_min = minutes;
     cfgSetInt(KEY_RUNTIME_SAVE_MIN, static_cast<int32_t>(_runtime_save_interval_min));
 }
-
-void FanController::_handleInit() { _state = SYS_IDLE; }
 
 void FanController::_handleIdle() {
     _processButtonEvents();
@@ -416,30 +424,48 @@ void FanController::_handleSleep() {
         Esp32BaseWiFi::setPowerSave(false);
         if (_state == SYS_SLEEP) {
             _state = SYS_IDLE;
+            ESP32BASE_LOG_I("FanCtrl", "Woken from sleep, transitioning to IDLE");
         }
-        ESP32BASE_LOG_I("FanCtrl", "Woken from sleep, transitioning to IDLE");
     }
 }
 
 void FanController::_handleError() {
+    if (_recovery_attempting) {
+        _handleRecovering();
+        return;
+    }
+
+    _processButtonEvents();
+    _processIREvents();
+    _processTimer();
+}
+
+void FanController::_handleRecovering() {
     _processButtonEvents();
     _processIREvents();
     _processTimer();
 
-    // Check recovery progress
-    if (_recovery_attempting) {
-        uint32_t elapsed = millis() - _recovery_start_tick;
-        if (elapsed >= 1500) {  // 1.5s recovery window
-            _recovery_attempting = false;
-            if (_fan.getRpm() > 0) {
-                _state = SYS_RUNNING;
-                _last_run_tick = millis();
-                ESP32BASE_LOG_I("FanCtrl", "Recovery successful, back to RUNNING");
-            } else {
-                ESP32BASE_LOG_W("FanCtrl", "Recovery failed, still blocked");
-                _fan.resetBlock();
-            }
+    if (!_recovery_attempting) {
+        if (_state == SYS_RECOVERING) {
+            _state = _fan.isBlocked() ? SYS_ERROR : SYS_RUNNING;
         }
+        return;
+    }
+
+    if (_fan.getRpm() > 0) {
+        _recovery_attempting = false;
+        _state = SYS_RUNNING;
+        _last_run_tick = millis();
+        ESP32BASE_LOG_I("FanCtrl", "Recovery successful, back to RUNNING");
+        return;
+    }
+
+    uint32_t elapsed = millis() - _recovery_start_tick;
+    if (_fan.isBlocked() || elapsed >= _recoveryTimeoutMs()) {
+        _recovery_attempting = false;
+        _fan.resetBlock();
+        _state = SYS_ERROR;
+        ESP32BASE_LOG_W("FanCtrl", "Recovery failed, still blocked");
     }
 }
 
@@ -559,7 +585,7 @@ void FanController::_processTimer() {
     } else if (_timer_remaining <= 60 && _timer_remaining % 10 == 0) {
         ESP32BASE_LOG_D("FanCtrl", "Timer remaining: %lus", static_cast<unsigned long>(_timer_remaining));
     }
-    _saveRuntimeState();
+    _saveRuntimeState(_timer_remaining <= 60 && _timer_remaining % 10 == 0);
 }
 
 void FanController::_processSleep() {
@@ -579,7 +605,6 @@ void FanController::_processSleep() {
     if (idle_time >= (_sleep_wait_time * 1000UL)) {
         _is_sleeping = true;
         _state = SYS_SLEEP;
-        _sleep_entry_tick = millis();
 
         // Enter modem sleep to save power
         Esp32BaseWiFi::setPowerSave(true);
@@ -587,6 +612,11 @@ void FanController::_processSleep() {
         ESP32BASE_LOG_I("FanCtrl", "Entering sleep mode (Modem Sleep), idle=%lus",
                  static_cast<unsigned long>(idle_time / 1000));
     }
+}
+
+uint32_t FanController::_recoveryTimeoutMs() const {
+    return static_cast<uint32_t>(_soft_start_time) +
+           static_cast<uint32_t>(_block_detect_time) + 500UL;
 }
 
 bool FanController::_applySpeed(uint8_t speed, bool force_save) {
@@ -631,7 +661,7 @@ void FanController::_syncGearFromSpeed(uint8_t speed) {
 }
 
 void FanController::_updateLedStatus() {
-    if (_state == SYS_ERROR || _fan.isBlocked()) {
+    if (_state == SYS_ERROR || _state == SYS_RECOVERING || _fan.isBlocked()) {
         _led.setOverride(LED_FAST_BLINK);
     } else if (!Esp32BaseWiFi::isConnected()) {
         _led.setOverride(LED_SLOW_BLINK);
@@ -646,6 +676,7 @@ void FanController::_loadConfig() {
     if (_min_effective_speed > 50) _min_effective_speed = 50;
     _sleep_wait_time = static_cast<uint16_t>(
         cfgGetInt(KEY_SLEEP_WAIT, 60));
+    if (_sleep_wait_time < 1) _sleep_wait_time = 1;
     if (_sleep_wait_time > 3600) _sleep_wait_time = 3600;
     _auto_restore = cfgGetBool(KEY_AUTO_RESTORE, true);
     int32_t led_flash_ms = cfgGetInt(KEY_LED_FLASH_MS, 200);
@@ -686,9 +717,12 @@ void FanController::_loadConfig() {
         uint64_t code = 0;
         char value[32];
         snprintf(key, sizeof(key), "%s%d", KEY_IR_ENTRY, i);
-        if (cfgGetStr(key, value, sizeof(value), "") &&
-            parseIRCodeEntry(value, &proto, &code)) {
-            _ir.setKeyCode(i, proto, code);
+        if (cfgGetStr(key, value, sizeof(value), "")) {
+            if (parseIRCodeEntry(value, &proto, &code)) {
+                _ir.setKeyCode(i, proto, code);
+            } else if (value[0] != '\0') {
+                ESP32BASE_LOG_W("FanCtrl", "Invalid IR config ignored key=%u", i);
+            }
         }
     }
 }

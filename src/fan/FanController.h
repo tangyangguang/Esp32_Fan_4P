@@ -9,11 +9,11 @@
 #include <stdint.h>
 
 enum SystemState {
-    SYS_INIT,
     SYS_IDLE,
     SYS_RUNNING,
     SYS_SLEEP,
     SYS_ERROR,
+    SYS_RECOVERING,
     SYS_COUNT
 };
 
@@ -62,11 +62,11 @@ public:
     void setRuntimeSaveIntervalMinutes(uint8_t minutes);
 
 private:
-    void _handleInit();
     void _handleIdle();
     void _handleRunning();
     void _handleSleep();
     void _handleError();
+    void _handleRecovering();
 
     void _processButtonEvents();
     void _processIREvents();
@@ -79,6 +79,7 @@ private:
     void _updateLedStatus();
     void _loadConfig();
     void _saveIRCode(uint8_t key_index);
+    uint32_t _recoveryTimeoutMs() const;
 
 #ifdef UNIT_TEST
     void _saveConfig();
@@ -113,7 +114,6 @@ public:
     uint8_t _min_effective_speed;
 
     bool _is_sleeping;
-    uint32_t _sleep_entry_tick;
     bool _auto_restore;
     uint32_t _recovery_start_tick;
     bool _recovery_attempting;

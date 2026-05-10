@@ -25,7 +25,7 @@ static IRReceiverDriver irDriver(PIN_IR_RECV);
 static FanController fanController(fanDriver, btnDriver, ledIndicator, irDriver);
 static FanWeb fanWeb(fanController, irDriver);
 
-static const uint32_t BOOT_CLEAR_WIFI_MS = 1000;
+static const uint32_t BOOT_CLEAR_WIFI_MS = 5000;
 static uint32_t bootPressStartMs = 0;
 static bool bootPressed = false;
 static bool bootActionDone = false;
@@ -76,7 +76,7 @@ static void handleBootButton() {
 
     if (pressed && bootPressed && !bootActionDone && now - bootPressStartMs >= BOOT_CLEAR_WIFI_MS) {
         bootActionDone = true;
-        ESP32BASE_LOG_W("main", "BOOT held 1s, clearing WiFi credentials");
+        ESP32BASE_LOG_W("main", "BOOT held 5s, clearing WiFi credentials");
         Esp32BaseConfig::flushAll();
         Esp32BaseWiFi::clearCredentials();
         delay(300);
@@ -97,13 +97,16 @@ void setup() {
 
     if (!Esp32Base::begin()) {
         Serial.printf("Esp32Base begin failed: %s\n", Esp32Base::lastError());
-        return;
+        while (true) {
+            delay(1000);
+            yield();
+        }
     }
 
-#if ESP32BASE_ENABLE_FILELOG
-    Esp32BaseFileLog::enable("/logs/app.log", 16UL * 1024UL, Esp32BaseLog::INFO, 4);
     Esp32BaseConfig::enableConfigAudit(true);
     Esp32BaseConfig::enableConfigReadAudit(true);
+#if ESP32BASE_ENABLE_FILELOG
+    Esp32BaseFileLog::enable("/logs/app.log", 16UL * 1024UL, Esp32BaseLog::INFO, 4);
 #endif
 
     fanController.begin();

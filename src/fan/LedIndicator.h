@@ -33,7 +33,9 @@ private:
     uint8_t _pin;
     bool _active_low;
     uint8_t _current_gear;
-    LedMode _base_mode;
+    LedMode _gear_mode;
+    LedMode _override_mode;
+    bool _override_active;
     uint32_t _last_toggle;
     bool _blink_state;
     uint32_t _flash_start;

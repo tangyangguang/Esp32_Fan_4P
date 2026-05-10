@@ -23,7 +23,9 @@ LedIndicator::LedIndicator(uint8_t pin, bool active_low)
     : _pin(pin)
     , _active_low(active_low)
     , _current_gear(0)
-    , _base_mode(LED_OFF)
+    , _gear_mode(LED_OFF)
+    , _override_mode(LED_OFF)
+    , _override_active(false)
     , _last_toggle(0)
     , _blink_state(false)
     , _flash_start(0)
@@ -57,8 +59,9 @@ void LedIndicator::setGear(uint8_t gear) {
     if (gear > 4) gear = 4;
     _current_gear = gear;
     LedMode next = gear > 0 ? LED_ON : LED_OFF;
-    if (_base_mode != next) {
-        _base_mode = next;
+    if (_override_active || _gear_mode != next) {
+        _gear_mode = next;
+        _override_active = false;
         resetBlinkClock();
     }
 }
@@ -68,8 +71,9 @@ void LedIndicator::setOverride(LedMode mode) {
         flashOnce();
         return;
     }
-    if (_base_mode != mode) {
-        _base_mode = mode;
+    if (!_override_active || _override_mode != mode) {
+        _override_mode = mode;
+        _override_active = true;
         resetBlinkClock();
     }
     if (mode == LED_FAST_BLINK) {
@@ -90,7 +94,8 @@ uint16_t LedIndicator::getFlashDuration() const {
 
 void LedIndicator::flashOnce() {
     if (_flash_duration_ms == 0) return;
-    if (_base_mode == LED_FAST_BLINK) return;
+    LedMode mode = _override_active ? _override_mode : _gear_mode;
+    if (mode == LED_FAST_BLINK) return;
     _flash_start = millis();
     _flash_output_on = !_output_on;
     _flash_active = true;
@@ -98,7 +103,8 @@ void LedIndicator::flashOnce() {
 
 void LedIndicator::update() {
     uint32_t now = millis();
-    if (_flash_active && _base_mode != LED_FAST_BLINK) {
+    LedMode mode = _override_active ? _override_mode : _gear_mode;
+    if (_flash_active && mode != LED_FAST_BLINK) {
         if (now - _flash_start < _flash_duration_ms) {
             writeDigital(_flash_output_on);
             return;
@@ -106,7 +112,7 @@ void LedIndicator::update() {
         _flash_active = false;
     }
 
-    switch (_base_mode) {
+    switch (mode) {
         case LED_OFF:
             writeDigital(false);
             break;

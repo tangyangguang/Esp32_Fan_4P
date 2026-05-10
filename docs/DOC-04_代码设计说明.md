@@ -12,22 +12,24 @@
 
 配置统一存储在 Esp32BaseConfig 的 NVS namespace `fan` 下。ESP32 NVS namespace 和 key 均有长度限制，因此本项目不沿用 ESP8266 版长 key。
 
-| key | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `min_spd` | int | 10 | 最低有效速度，0-50 |
-| `soft_on` | int | 1000 | 软启动 ms，0-10000 |
-| `soft_off` | int | 1000 | 软停止 ms，0-10000 |
-| `blk_ms` | int | 1500 | 堵转检测 ms，100-5000 |
-| `slp_s` | int | 60 | 停止后进入 power save 的等待秒数 |
-| `restore` | bool | true | 上电恢复策略 |
-| `led_ms` | int | 200 | 操作反馈 LED 闪烁时长 ms |
-| `rt_save_m` | int | 1 | 运行状态持久化间隔分钟 |
-| `last_spd` | int | 0 | 上次速度 |
-| `last_tim` | int | 0 | 上次剩余定时秒数 |
-| `run_s` | int | 0 | 累计运行秒数 |
-| `ir_0..7` | string | 空 | 红外学习码，格式为 `protocol:hexCode` |
+| key | API 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `min_spd` | `min_effective_speed` | int | 10 | 最低有效速度，0-50 |
+| `soft_on` | `soft_start` | int | 1000 | 软启动 ms，0-10000 |
+| `soft_off` | `soft_stop` | int | 1000 | 软停止 ms，0-10000 |
+| `blk_ms` | `block_detect` | int | 1500 | 堵转检测 ms，100-5000 |
+| `slp_s` | `sleep_wait` | int | 60 | 停止后进入 power save 的等待秒数，最小 1 |
+| `restore` | `auto_restore` | bool | true | 上电恢复策略 |
+| `led_ms` | `led_flash_ms` | int | 200 | 操作反馈 LED 闪烁时长 ms |
+| `rt_save_m` | `runtime_save_min` | int | 1 | 运行状态持久化间隔分钟 |
+| `last_spd` | `target_speed` | int | 0 | 上次速度 |
+| `last_tim` | `timer_remaining` | int | 0 | 上次剩余定时秒数 |
+| `run_s` | `run_duration` | int | 0 | 累计运行秒数；64-bit 升级见 `docs/RUN_DURATION_MIGRATION_PLAN.md` |
+| `ir_0..7` | IR 状态字段 | string | 空 | 红外学习码，格式为 `protocol:hexCode` |
 
 应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
+
+两键同时长按 >5s 的出厂重置行为与 ESP12F_Fan_4P 对齐：清除 `fan` namespace，并调用 Esp32Base 库 namespace 清理能力，因此 WiFi 凭证和 Web Auth 也会被清除，随后重启。
 
 ## 2. 运行状态
 
@@ -38,7 +40,7 @@
 | `current_speed` | uint8_t | 实际 PWM 输出速度 |
 | `rpm` | uint16_t | 当前转速 |
 | `timer_remaining` | uint32_t | 剩余定时秒数 |
-| `run_duration` | uint32_t | 累计运行秒数 |
+| `run_duration` | uint32_t | 累计运行秒数；当前持久化结构待按迁移方案升级 |
 | `is_blocked` | bool | 堵转保护状态 |
 | `is_sleeping` | bool | 是否进入 power save 策略 |
 
@@ -74,8 +76,10 @@
 - `stop()` 清除定时并输出 0。
 - `setSpeed(1..min_spd-1)` 自动提升到 `min_spd`。
 - 软启动过程中收到新速度，按当前状态重新调度。
-- 堵转后任意启动指令可尝试恢复。
+- 堵转后任意启动指令进入 `SYS_RECOVERING`，恢复窗口为软启动时间 + 堵转检测时间 + 500 ms；重复速度指令不重置窗口。
 - 运行状态持久化需要限频，避免 NVS 高频写入。
+- 倒计时最后 60 秒内每 10 秒强制保存一次 `last_tim`，降低断电恢复漂移。
+- 加速键和减速键同时长按 >5s 执行完整出厂重置，清除风扇配置、WiFi 凭证和 Web 密码后重启。
 
 ## 5. FanWeb 设计
 
@@ -131,6 +135,7 @@ API：
 - FanController 状态机。
 - 定时、恢复、堵转恢复。
 - 配置边界。
+- 按键消抖 50 ms 加 loop tick 后需满足本地响应 <= 200 ms。
 
 阶段三：ESP32 实机测试。
 
@@ -174,7 +179,7 @@ API：
 当前验证：
 
 - `pio run -e esp32dev` 通过。
-- `pio test -e native` 通过，7 个测试用例成功。
+- `pio test -e native` 通过，8 个测试用例成功。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
 - `pio run -e esp32dev -t webota` 通过，使用 Esp32Base `scripts/esp32base_webota.py`。
 - 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。

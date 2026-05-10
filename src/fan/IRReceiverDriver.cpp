@@ -8,6 +8,11 @@
 #include <Esp32Base.h>
 #endif
 
+namespace {
+const uint16_t kCaptureBufferSize = 512;
+const uint16_t kCaptureTimeout = 50;
+}
+
 IRReceiverDriver::IRReceiverDriver(uint8_t recv_pin)
     : _recv_pin(recv_pin)
     , _irrecv(recv_pin, kCaptureBufferSize, kCaptureTimeout, true)
@@ -62,14 +67,12 @@ IREvent IRReceiverDriver::getEvent() {
         return IR_EVENT_NONE;
     }
 
-#ifndef UNIT_TEST
     if (results.repeat) {
         _irrecv.resume();
         ESP32BASE_LOG_D("IR", "Ignored repeat IR frame: protocol=%d, code=0x%08llX",
                           (int)results.decode_type, static_cast<unsigned long long>(results.value));
         return IR_EVENT_NONE;
     }
-#endif
 
     if ((int)results.decode_type <= 0 || results.value == 0) {
         _irrecv.resume();

@@ -21,7 +21,7 @@
 | F-01 | PWM 无级调速 | 支持 0-100%，PWM 频率 25 kHz，1%-9% 自动提升到最低有效转速，0% 停止 | 本项目 FanDriver |
 | F-02 | TACH 转速反馈 | 四线风扇转速测量误差 <= 5%，更新频率 >= 1 Hz | 本项目 FanDriver |
 | F-03 | 堵转保护 | 输出达到最低有效转速且无 RPM 持续达到配置值时切断输出并报警；任意启动指令可恢复尝试 | 本项目 FanDriver/FanController |
-| F-04 | 本地按键 | 加速/减速短按调档，双键长按 5 秒恢复出厂，响应 <= 200 ms | 本项目 ButtonDriver/FanController |
+| F-04 | 本地按键 | 加速/减速短按调档；同时长按 >5s 执行完整出厂重置，清除风扇配置、WiFi 凭证和 Web 密码；响应 <= 200 ms | 本项目 ButtonDriver/FanController |
 | F-05 | 红外学习 | Web 触发学习，支持常见协议，记录加速、减速、停止、30min、1h、2h、4h、8h | 本项目 IRReceiverDriver/FanWeb |
 | F-06 | 定时运行 | 支持 30min/1h/2h/4h/8h 预设和最大 99 小时自定义，倒计时结束停止 | 本项目 FanController/FanWeb |
 | F-07 | Web 控制 | `/fan` 查看状态并控制速度/定时，Basic Auth 鉴权，页面移动端可用 | Esp32Base Web + 本项目 FanWeb |
@@ -35,7 +35,7 @@
 | F-15 | mDNS | 使用 `esp32-fan.local` 或后续动态 hostname 访问 | Esp32Base mDNS |
 | F-16 | 配置页面 | Web 修改风扇参数、恢复策略、红外学习 | 本项目 FanWeb + Esp32BaseConfig |
 | F-17 | Web Auth | 通过 Esp32Base 内置页面修改账号密码 | Esp32Base `/esp32base/auth` |
-| F-18 | BOOT 清 WiFi | GPIO0 长按 1 秒清除 WiFi 凭证并重启 | main + Esp32BaseWiFi |
+| F-18 | BOOT 清 WiFi | GPIO0 长按 5 秒清除 WiFi 凭证并重启 | main + Esp32BaseWiFi |
 | F-19 | LED 指示 | 档位亮度、WiFi 慢闪、故障快闪、操作闪烁 | 本项目 LedIndicator |
 | F-20 | 看门狗 | 主循环正常喂狗，长时间卡死可恢复 | Esp32Base Watchdog |
 | F-21 | NTP 时间 | 网络可用后日志和状态页可显示真实时间 | Esp32Base NTP |
@@ -82,7 +82,7 @@
 
 ## 7. Esp32Base 验证清单
 
-本项目必须验证以下 Esp32Base 模块：
+本项目必须验证以下 Esp32Base 模块；其中 Web/API 路径直接调用的模块和 `Esp32Base::begin()` 隐式启用的模块要在验证记录中分开说明：
 
 - `Esp32BaseLog`
 - `Esp32BaseConfig`
@@ -107,7 +107,7 @@
 | F-01, F-02, F-03, F-13 | FanDriver | Log | 已实现，待 PWM/TACH 实机仪器验证 |
 | F-04, F-19 | ButtonDriver, LedIndicator | Log | 已实现，native 测试通过，待硬件操作验证 |
 | F-05 | IRReceiverDriver, FanWeb | Web, Config, Log | 已实现，待真实遥控器验证 |
-| F-06, F-12, S-01 | FanController | Config, Log | 已实现，native 测试通过 |
+| F-06, F-12, S-01 | FanController | Config, Log | 已实现，native 测试通过；累计运行时长 64-bit 持久化升级需先确认迁移方案 |
 | F-07, F-08, F-16 | FanWeb | Web, Config, Log | 已实现，固件构建通过 |
 | F-09 | main, FanController | Fs, FileLog, Web Logs | 固件已编译通过，待实机验证 |
 | F-10 | main | Ota, Web, Fs | 固件已编译通过，待实机验证 |
