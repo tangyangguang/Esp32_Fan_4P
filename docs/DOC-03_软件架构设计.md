@@ -137,6 +137,8 @@ build_flags =
 
 `src/deps_esp32base_full.cpp` 用于锚定 PlatformIO LDF，使 Full profile 所需的 framework 库参与链接。当前 `pio run -e esp32dev` 已通过。
 
+命令行 Web OTA 使用 Esp32Base 提供的 `scripts/esp32base_webota.py` 注册 `webota` target。本项目在 `platformio.ini` 中通过 `extra_scripts` 引入该脚本，并用 `custom_esp32base_webota_host/user/password` 指向当前设备和认证信息。
+
 ## 8. 架构风险
 
 | 风险 | 影响 | 处理 |

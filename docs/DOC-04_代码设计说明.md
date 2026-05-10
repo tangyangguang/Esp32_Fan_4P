@@ -176,6 +176,7 @@ API：
 - `pio run -e esp32dev` 通过。
 - `pio test -e native` 通过，7 个测试用例成功。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
+- `pio run -e esp32dev -t webota` 通过，使用 Esp32Base `scripts/esp32base_webota.py`。
 - 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
 - 当前设备持久化 Auth 已通过 Esp32Base 内置页面改为 `admin/admin`，旧 `admin/admin123` 已返回 401。
 - AP 配网后设备 IP 为 `192.168.2.112`，`esp32-fan.local` 可解析。

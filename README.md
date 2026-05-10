@@ -65,16 +65,19 @@
 ```bash
 pio run -e esp32dev
 pio run -e esp32dev -t upload
+pio run -e esp32dev -t webota
 pio device monitor -e esp32dev
 ```
 
 工程已把 `upload_speed` 固定为 `115200`。烧录前需要用 `ls /dev/cu.*` 确认当前 ESP32 串口。
+`webota` target 来自 Esp32Base 的 `scripts/esp32base_webota.py`，默认使用 `192.168.2.112` 和 `admin/admin` 上传到 `/esp32base/ota`。
 
 当前构建状态：
 
 - `pio run -e esp32dev` 通过。
 - `pio test -e native` 通过。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
+- `pio run -e esp32dev -t webota` 通过。
 - 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
 - 用户完成 AP 配网后，`esp32-fan.local` 解析到 `192.168.2.112`，`/esp32base/api/status` 返回 `profile=FULL`、`wifi.connected=true`。
 - 直接访问 `192.168.2.112` 时，`/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop` 均已通过实机请求验证。

@@ -28,6 +28,7 @@
 | 编译状态 | 已通过 | `pio run -e esp32dev` 通过 |
 | 测试状态 | 已通过 | `pio test -e native`，7 个用例通过 |
 | 烧录状态 | 已通过 | `/dev/cu.usbserial-130`，115200 上传成功；`/dev/cu.usbserial-120` 是 ESP8266 |
+| Web OTA CLI | 已接入 | 使用 Esp32Base `scripts/esp32base_webota.py` 的 `webota` target |
 | 启动状态 | 已通过 | 进入 `ESP32-Config-65E4` 配网 AP，Web server ready |
 | 业务代码迁移 | 已完成基础闭环 | 仍需实机验证 PWM/RPM/OTA |
 | WiFi 配网与 Web/API | 已完成首轮验证 | 用户已完成 AP 配网，设备在局域网可访问 |
@@ -84,6 +85,7 @@
 - 直接 IP 访问 `/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop` 均成功。
 - 直接 IP 访问 `/esp32base/logs` 和 `/esp32base/ota` 页面均返回 HTTP 200。
 - 已通过 `/esp32base/ota` 上传同版本固件，上传返回 `{"ok":true}`，重启后 `/esp32base/api/status`、`/api/status`、`/fan`、`/esp32base/logs` 均恢复正常。
+- 已接入并验证 `pio run -e esp32dev -t webota`。
 - 已临时设置 `sleep_wait=3` 验证 WiFi power save，进入 `sleep` 状态后 `/api/status` 仍可访问；验证后恢复 `sleep_wait=60`。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
 - Web Auth 已使用 Esp32Base 内置持久化能力，默认账号密码由应用提供，修改入口为 `/esp32base/auth`。
