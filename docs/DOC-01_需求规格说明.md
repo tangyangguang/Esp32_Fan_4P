@@ -107,10 +107,10 @@
 | F-01, F-02, F-03, F-13 | FanDriver | Log | 已实现，待 PWM/TACH 实机仪器验证 |
 | F-04, F-19 | ButtonDriver, LedIndicator | Log | 已实现，native 测试通过，待硬件操作验证 |
 | F-05 | IRReceiverDriver, FanWeb | Web, Config, Log | 已实现，待真实遥控器验证 |
-| F-06, F-12, S-01 | FanController | Config, Log | 已实现，native 测试通过；累计运行时长 64-bit 持久化升级需先确认迁移方案 |
+| F-06, F-12, S-01 | FanController | Config, Log | 已实现，native 测试通过；累计运行时长当前不升级 64-bit |
 | F-07, F-08, F-16 | FanWeb | Web, Config, Log | 已实现，固件构建通过 |
-| F-09 | main, FanController | Fs, FileLog, Web Logs | 固件已编译通过，待实机验证 |
-| F-10 | main | Ota, Web, Fs | 固件已编译通过，待实机验证 |
-| F-11, F-15, F-17, F-18 | main | WiFi, DNS, mDNS, Web | 固件已编译通过，待实机验证 |
+| F-09 | main, FanController | Fs, FileLog, Web Logs | 日志页面和文件日志基础访问已实机验证，继续观察长期轮转 |
+| F-10 | main | Ota, Web, Fs | Web OTA 正常上传已实机验证；失败回滚/异常固件路径待验证 |
+| F-11, F-15, F-17, F-18 | main | WiFi, DNS, mDNS, Web | AP 配网、mDNS、Web API、Auth 和 BOOT 清 WiFi 代码闭环已完成；BOOT 清 WiFi仍需人工按键复验 |
 | F-14 | FanController | WiFi, Sleep | 已实现，待长时间实机观察 |
 | F-20, F-21, S-02 | main | Watchdog, NTP, Health, System | 已集成，待长时间实机观察 |

@@ -28,6 +28,7 @@ FanDriver::FanDriver(uint8_t pwm_pin, uint8_t tach_pin)
     , _tach_pin(tach_pin)
     , _current_speed(0)
     , _target_speed(0)
+    , _ramp_start_speed(0)
     , _soft_start_time(1000)
     , _soft_stop_time(1000)
     , _block_detect_time(1500)
@@ -103,7 +104,9 @@ void FanDriver::tick() {
         uint32_t elapsed = now - _soft_start_tick;
         if (_soft_start_time > 0 && elapsed < _soft_start_time) {
             uint32_t progress = (elapsed * 100) / _soft_start_time;
-            uint8_t gradient_speed = static_cast<uint8_t>((_target_speed * progress) / 100);
+            int32_t delta = static_cast<int32_t>(_target_speed) - static_cast<int32_t>(_ramp_start_speed);
+            uint8_t gradient_speed = static_cast<uint8_t>(
+                static_cast<int32_t>(_ramp_start_speed) + (delta * static_cast<int32_t>(progress)) / 100);
             if (_min_effective_speed > 0 &&
                 gradient_speed < _min_effective_speed &&
                 _target_speed >= _min_effective_speed) {
@@ -122,7 +125,7 @@ void FanDriver::tick() {
         uint32_t elapsed = now - _soft_start_tick;
         if (_soft_stop_time > 0 && elapsed < _soft_stop_time) {
             uint32_t progress = (elapsed * 100) / _soft_stop_time;
-            uint8_t gradient_speed = static_cast<uint8_t>(_current_speed * (100 - progress) / 100);
+            uint8_t gradient_speed = static_cast<uint8_t>(_ramp_start_speed * (100 - progress) / 100);
             _writePwm(gradient_speed);
             _current_speed = gradient_speed;
         } else {
@@ -168,6 +171,7 @@ bool FanDriver::setSpeed(uint8_t speed) {
         if (_current_speed > 0 && _soft_stop_time > 0) {
             _state = FAN_STATE_SOFT_STOP;
             _soft_start_tick = now;
+            _ramp_start_speed = _current_speed;
             ESP32BASE_LOG_I("FanDrv", "Soft stop start: %d%% -> 0%% (%lums)",
                      _current_speed, static_cast<unsigned long>(_soft_stop_time));
         } else {
@@ -178,11 +182,12 @@ bool FanDriver::setSpeed(uint8_t speed) {
         }
     } else {
         _block_start_tick = 0;
-        if (_current_speed == 0 && _soft_start_time > 0) {
+        if (_current_speed != speed && _soft_start_time > 0) {
             _state = FAN_STATE_SOFT_START;
             _soft_start_tick = now;
-            ESP32BASE_LOG_I("FanDrv", "Soft start: 0%% -> %d%% (%lums)",
-                     speed, static_cast<unsigned long>(_soft_start_time));
+            _ramp_start_speed = _current_speed;
+            ESP32BASE_LOG_I("FanDrv", "Soft ramp: %d%% -> %d%% (%lums)",
+                     _ramp_start_speed, speed, static_cast<unsigned long>(_soft_start_time));
         } else {
             _current_speed = speed;
             _writePwm(speed);

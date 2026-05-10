@@ -23,13 +23,12 @@
 - 0-100% PWM 调速，目标 PWM 频率 25 kHz。
 - 四线风扇 TACH 转速反馈和堵转保护。
 - 软启动、软停止。
-- 本地加速/减速按键；两键同时长按 5 秒执行完整出厂重置。
+- 本地加速/减速按键；两键同时长按 5 秒执行完整出厂重置，清除 `fan` 业务配置以及 Esp32Base 的 `eb_wifi`、`eb_sys`、`eb_log`、`eb_web` 配置。
 - 红外遥控学习和控制。
 - 定时运行、断电恢复和累计运行时长统计。
 - Web 控制页、配置页、REST API 和日志页。
 - WiFi 配网、mDNS、NTP、OTA、文件日志、看门狗、低功耗策略。
 - BOOT 键长按清除 WiFi 凭证并重启进入配网流程。
-- 加速键和减速键同时长按 5 秒会清除风扇配置、WiFi 凭证和 Web 密码后重启，与 ESP12F_Fan_4P 保持一致。
 
 ## 基础库使用原则
 
@@ -71,7 +70,7 @@ pio device monitor -e esp32dev
 ```
 
 工程已把 `upload_speed` 固定为 `115200`。烧录前需要用 `ls /dev/cu.*` 确认当前 ESP32 串口。
-`webota` target 来自相邻目录 `../Esp32Base/scripts/esp32base_webota.py`，默认使用 `192.168.2.112` 和 `admin/admin` 上传到 `/esp32base/ota`。
+`webota` target 来自相邻目录 `../Esp32Base/scripts/esp32base_webota.py`。仓库通过 gitignored 的 `platformio.local.ini` 加载本机目标配置，因此当前工作机可直接使用 `pio run -e esp32dev -t webota`；设备 IP 或 Web Auth 变化时只需更新本地 `[esp32base_webota]` 私有段。也可用环境变量 `ESP32BASE_WEBOTA_HOST`、`ESP32BASE_WEBOTA_USER`、`ESP32BASE_WEBOTA_PASSWORD` 临时覆盖目标。
 
 当前构建状态摘要如下，详细验证记录以 [DOC-00 项目建设计划](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-00_项目建设计划.md) 为准：
 
@@ -100,5 +99,5 @@ pio device monitor -e esp32dev
 - [DOC-02 硬件设计说明](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-02_硬件设计说明.md)
 - [DOC-03 软件架构设计](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-03_软件架构设计.md)
 - [DOC-04 代码设计说明](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-04_代码设计说明.md)
-- [Run Duration 迁移方案](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/RUN_DURATION_MIGRATION_PLAN.md)
+- [Run Duration 64-bit 决策记录](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/RUN_DURATION_DECISION.md)
 - [Esp32Base 待完善提示词](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/ESP32BASE_PROMPTS.md)

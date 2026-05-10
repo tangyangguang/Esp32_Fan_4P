@@ -109,10 +109,11 @@ Infrastructure
 1. 设置固件信息和 hostname。
 2. 调用 `Esp32BaseWeb::setDefaultAuth("admin", "admin")`，并设置设备名、业务首页和系统导航模式。
 3. 注册 `/fan`、`/config` 和 `/api/*` 路由；`/fan`、`/config` 通过 `addPage(path, title, handler)` 进入基础库导航。
-4. 调用 `Esp32Base::begin()`。
-5. 启用文件日志和配置审计。
-6. 初始化风扇控制器。
-7. loop 中持续调用 `Esp32Base::handle()` 和 `FanController::tick()`。
+4. 在 `Esp32Base::begin()` 前启用 Config write/read audit，覆盖基础库启动期配置读取。
+5. 调用 `Esp32Base::begin()`。
+6. 启用文件日志。
+7. 初始化风扇控制器。
+8. loop 中持续调用 `Esp32Base::handle()` 和 `FanController::tick()`。
 
 ## 7. 当前基础环境
 
@@ -137,7 +138,7 @@ build_flags =
 
 `src/deps_esp32base_full.cpp` 用于锚定 PlatformIO LDF，使 Full profile 所需的 framework 库参与链接。当前 `pio run -e esp32dev` 已通过。
 
-命令行 Web OTA 使用相邻目录 `../Esp32Base/scripts/esp32base_webota.py` 注册 `webota` target。本项目在 `platformio.ini` 中通过 `extra_scripts` 引入该脚本，并用 `custom_esp32base_webota_host/user/password` 指向当前设备和认证信息。
+命令行 Web OTA 使用相邻目录 `../Esp32Base/scripts/esp32base_webota.py` 注册 `webota` target。本项目在 `platformio.ini` 中通过 `extra_scripts` 引入该脚本；具体设备地址和认证信息不提交到仓库，由本地 `[esp32base_webota]` 配置段或 `ESP32BASE_WEBOTA_*` 环境变量提供。
 
 ## 8. 架构风险
 

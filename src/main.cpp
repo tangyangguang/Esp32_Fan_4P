@@ -2,6 +2,7 @@
 
 #include <Esp32Base.h>
 
+#include "app/FanAppRuntime.h"
 #include "fan/ButtonDriver.h"
 #include "fan/FanController.h"
 #include "fan/FanDriver.h"
@@ -24,65 +25,7 @@ static LedIndicator ledIndicator(PIN_LED, true);
 static IRReceiverDriver irDriver(PIN_IR_RECV);
 static FanController fanController(fanDriver, btnDriver, ledIndicator, irDriver);
 static FanWeb fanWeb(fanController, irDriver);
-
-static const uint32_t BOOT_CLEAR_WIFI_MS = 5000;
-static uint32_t bootPressStartMs = 0;
-static bool bootPressed = false;
-static bool bootActionDone = false;
-static bool bootClearArmed = false;
-
-static void configureBaseWebBeforeBegin() {
-    Esp32BaseWeb::setDefaultAuth("admin", "admin");
-    Esp32BaseWeb::setDeviceName("ESP Fan");
-    Esp32BaseWeb::setHomePath("/fan");
-    Esp32BaseWeb::setHomeMode(Esp32BaseWeb::HOME_COMBINED);
-    Esp32BaseWeb::setSystemNavMode(Esp32BaseWeb::SYSTEM_NAV_SECTION);
-}
-
-static void registerFanRoutes() {
-    bool ok = true;
-    ok &= Esp32BaseWeb::addPage("/fan", "Fan", FanWeb::handleStatusPage);
-    ok &= Esp32BaseWeb::addPage("/config", "Settings", FanWeb::handleConfigPage);
-    ok &= Esp32BaseWeb::addApi("/api/status", FanWeb::handleApiStatus);
-    ok &= Esp32BaseWeb::addApi("/api/speed", FanWeb::handleApiSpeed);
-    ok &= Esp32BaseWeb::addApi("/api/timer", FanWeb::handleApiTimer);
-    ok &= Esp32BaseWeb::addApi("/api/stop", FanWeb::handleApiStop);
-    ok &= Esp32BaseWeb::addApi("/api/config", FanWeb::handleApiConfig);
-    ok &= Esp32BaseWeb::addApi("/api/ir/learn", FanWeb::handleApiIrLearn);
-    if (!ok) {
-        ESP32BASE_LOG_E("main", "custom Web route registration incomplete");
-    }
-}
-
-static void handleBootButton() {
-    const bool pressed = digitalRead(PIN_BOOT) == LOW;
-    const uint32_t now = millis();
-
-    if (!bootClearArmed) {
-        if (!pressed) {
-            bootClearArmed = true;
-        }
-        return;
-    }
-
-    if (pressed && !bootPressed) {
-        bootPressed = true;
-        bootActionDone = false;
-        bootPressStartMs = now;
-    } else if (!pressed && bootPressed) {
-        bootPressed = false;
-        bootActionDone = false;
-    }
-
-    if (pressed && bootPressed && !bootActionDone && now - bootPressStartMs >= BOOT_CLEAR_WIFI_MS) {
-        bootActionDone = true;
-        ESP32BASE_LOG_W("main", "BOOT held 5s, clearing WiFi credentials");
-        Esp32BaseConfig::flushAll();
-        Esp32BaseWiFi::clearCredentials();
-        delay(300);
-        ESP.restart();
-    }
-}
+static BootClearState bootClearState = {};
 
 void setup() {
     Serial.begin(115200);
@@ -92,8 +35,9 @@ void setup() {
 
     Esp32Base::setFirmwareInfo("ESP32_Fan_4P", "0.1.0");
     Esp32Base::setHostname("esp32-fan");
-    configureBaseWebBeforeBegin();
-    registerFanRoutes();
+    fanAppConfigureBaseWebBeforeBegin();
+    fanAppRegisterFanRoutes();
+    fanAppEnableConfigAuditBeforeBegin();
 
     if (!Esp32Base::begin()) {
         Serial.printf("Esp32Base begin failed: %s\n", Esp32Base::lastError());
@@ -103,8 +47,6 @@ void setup() {
         }
     }
 
-    Esp32BaseConfig::enableConfigAudit(true);
-    Esp32BaseConfig::enableConfigReadAudit(true);
 #if ESP32BASE_ENABLE_FILELOG
     Esp32BaseFileLog::enable("/logs/app.log", 16UL * 1024UL, Esp32BaseLog::INFO, 4);
 #endif
@@ -116,6 +58,6 @@ void setup() {
 void loop() {
     Esp32Base::handle();
     fanController.tick();
-    handleBootButton();
+    fanAppHandleBootButton(PIN_BOOT, &bootClearState);
     yield();
 }

@@ -4,7 +4,31 @@
 
 ## 当前状态
 
-当前没有新的未处理基础库提示词。
+当前有 2 个基础库边界问题需要在 Esp32Base 项目中确认/完善：
+
+### 出厂重置 namespace 清理范围可声明
+
+背景：本项目两键长按执行完整出厂重置，会清理 `fan` namespace，并调用 `Esp32BaseConfig::clearLibraryNamespaces()` 清理基础库配置。
+
+目标：Esp32Base 提供可枚举、可声明的基础库 namespace 清理范围，至少明确 WiFi、Web Auth、系统、日志配置分别对应的 namespace。
+
+现状问题：业务项目只能依赖文档和源码得知 `clearLibraryNamespaces()` 当前清理 `eb_wifi`、`eb_sys`、`eb_log`、`eb_web`，缺少 dry-run 或清单 API，不利于保护业务持久化资产。
+
+影响范围：所有调用完整出厂重置的业务项目，以及升级/备份/恢复前的影响面说明。
+
+提示词：为 Esp32Base 提供可枚举/可选择的出厂重置 API，明确 WiFi、Web Auth、系统、日志等 namespace 的清理范围，并提供 dry-run 或文档化清单，方便业务项目保护用户持久化资产。
+
+### Config 审计 pre-begin 语义文档化
+
+背景：本项目要求 `Esp32BaseConfig::enableConfigReadAudit(true)` 覆盖 `Esp32Base::begin()` 内部配置读取。
+
+目标：Esp32Base 明确支持并记录 Config audit/read audit 在 `Esp32Base::begin()` 前开启的行为。
+
+现状问题：当前 API 可在 pre-begin 调用，但文档未明确推荐时机，业务项目容易把审计开关放到 begin 之后，漏掉基础库启动读取日志。
+
+影响范围：现场调试、配置读取审计、安全观察和问题复盘。
+
+提示词：请在 Esp32Base 文档中明确 `enableConfigAudit()` / `enableConfigReadAudit()` 可在 `Esp32Base::begin()` 前调用，并说明若需要覆盖基础库初始化读取，必须在 begin 前开启；补充一个最小示例。
 
 实机联网验证中观察到 `esp32-fan.local` 在 macOS curl 下首次解析约等待 5 秒，但直接 IP 访问响应正常。当前判断更像客户端 mDNS 解析表现，不作为基础库 bug 记录；若浏览器和多设备访问均稳定复现，再按模板补充提示词。
 

@@ -24,12 +24,12 @@
 | `rt_save_m` | `runtime_save_min` | int | 1 | 运行状态持久化间隔分钟 |
 | `last_spd` | `target_speed` | int | 0 | 上次速度 |
 | `last_tim` | `timer_remaining` | int | 0 | 上次剩余定时秒数 |
-| `run_s` | `run_duration` | int | 0 | 累计运行秒数；64-bit 升级见 `docs/RUN_DURATION_MIGRATION_PLAN.md` |
+| `run_s` | `run_duration` | int | 0 | 累计运行秒数；当前不升级 64-bit，见 `docs/RUN_DURATION_DECISION.md` |
 | `ir_0..7` | IR 状态字段 | string | 空 | 红外学习码，格式为 `protocol:hexCode` |
 
 应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
 
-两键同时长按 >5s 的出厂重置行为与 ESP12F_Fan_4P 对齐：清除 `fan` namespace，并调用 Esp32Base 库 namespace 清理能力，因此 WiFi 凭证和 Web Auth 也会被清除，随后重启。
+两键同时长按 >5s 的出厂重置行为与 ESP12F_Fan_4P 对齐：清除 `fan` namespace，并调用 Esp32Base 库 namespace 清理能力。当前 Esp32Base 会清理 `eb_wifi`、`eb_sys`、`eb_log`、`eb_web`，因此 WiFi 凭证、Web Auth、系统计数和文件日志配置也会被清除，随后重启。
 
 ## 2. 运行状态
 
@@ -40,7 +40,7 @@
 | `current_speed` | uint8_t | 实际 PWM 输出速度 |
 | `rpm` | uint16_t | 当前转速 |
 | `timer_remaining` | uint32_t | 剩余定时秒数 |
-| `run_duration` | uint32_t | 累计运行秒数；当前持久化结构待按迁移方案升级 |
+| `run_duration` | uint32_t | 累计运行秒数，秒级上限满足 10 年以上运行统计 |
 | `is_blocked` | bool | 堵转保护状态 |
 | `is_sleeping` | bool | 是否进入 power save 策略 |
 
@@ -58,7 +58,7 @@
 - ISR 只递增 `volatile` 计数，不写日志，不访问配置。
 - 默认按 2 pulse/revolution 计算 RPM。
 - PWM 分辨率默认 8 bit，频率默认 25 kHz。
-- Arduino ESP32 Core 2.x 使用 `ledcSetup/ledcAttachPin`，Core 3.x 后续需确认 API 兼容。
+- Arduino ESP32 Core 2.x 使用 `ledcSetup/ledcAttachPin`；代码已为 Core 3.x 增加 `ledcAttach` 条件编译分支，但当前项目仍以 Core 2.x 构建为准，Core 3.x 需独立构建和 PWM 实测确认。
 
 ## 4. FanController 设计
 
@@ -115,12 +115,12 @@ API：
 
 - 定义 ESP32 GPIO。
 - 设置 firmware info 和 hostname。
-- 在 `Esp32Base::begin()` 前设置 Web Auth。
-- 在 Web 启动前注册应用路由。
+- 在 `Esp32Base::begin()` 前通过 `FanAppRuntime` 设置 Web Auth、业务首页和 Config audit。
+- 在 Web 启动前通过 `FanAppRuntime` 注册应用路由。
 - 启动 Esp32Base Full profile。
 - 启动风扇控制器。
 - loop 中调用基础库和业务 tick。
-- 检测 BOOT 键长按并清除 WiFi 凭证。
+- 通过 `FanAppRuntime` 检测 BOOT 键长按并清除 WiFi 凭证。
 
 ## 7. 测试策略
 
@@ -135,6 +135,7 @@ API：
 - FanController 状态机。
 - 定时、恢复、堵转恢复。
 - 配置边界。
+- 应用路由注册、Config audit 启用和 BOOT 清 WiFi 时序。
 - 按键消抖 50 ms 加 loop tick 后需满足本地响应 <= 200 ms。
 
 阶段三：ESP32 实机测试。
@@ -179,7 +180,7 @@ API：
 当前验证：
 
 - `pio run -e esp32dev` 通过。
-- `pio test -e native` 通过，8 个测试用例成功。
+- `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用和 BOOT 清 WiFi 时序。
 - `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
 - `pio run -e esp32dev -t webota` 通过，使用 Esp32Base `scripts/esp32base_webota.py`。
 - 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。

@@ -431,7 +431,11 @@ void FanWeb::handleApiSpeed() {
         uint32_t speed = 0;
         if (parseUintParam("speed", 0, 100, &speed)) {
             ESP32BASE_LOG_I("FanWeb", "user_action speed=%lu", static_cast<unsigned long>(speed));
-            _controller->setSpeed(static_cast<uint8_t>(speed));
+            if (!_controller->setSpeed(static_cast<uint8_t>(speed))) {
+                ESP32BASE_LOG_W("FanWeb", "speed_request_failed speed=%lu", static_cast<unsigned long>(speed));
+                Esp32BaseWeb::sendJson(409, "{\"ok\":false,\"error\":\"speed rejected\"}");
+                return;
+            }
             char buf[64];
             snprintf(buf, sizeof(buf), "{\"ok\":true,\"speed\":%d,\"target_speed\":%d}",
                      _controller->getCurrentSpeed(), _controller->getTargetSpeed());
@@ -455,7 +459,11 @@ void FanWeb::handleApiTimer() {
         uint32_t seconds = 0;
         if (parseUintParam("seconds", 0, 356400, &seconds)) {
             ESP32BASE_LOG_I("FanWeb", "user_action timer_seconds=%lu", static_cast<unsigned long>(seconds));
-            _controller->setTimer(seconds);
+            if (!_controller->setTimer(seconds)) {
+                ESP32BASE_LOG_W("FanWeb", "timer_request_failed seconds=%lu", static_cast<unsigned long>(seconds));
+                Esp32BaseWeb::sendJson(500, "{\"ok\":false,\"error\":\"timer save failed\"}");
+                return;
+            }
             char buf[64];
             snprintf(buf, sizeof(buf), "{\"ok\":true,\"timer_remaining\":%lu}",
                      (unsigned long)_controller->getTimerRemaining());
@@ -474,7 +482,11 @@ void FanWeb::handleApiTimer() {
 void FanWeb::handleApiStop() {
     if (!Esp32BaseWeb::checkAuth()) return;
     ESP32BASE_LOG_I("FanWeb", "user_action stop_fan");
-    _controller->stop();
+    if (!_controller->stop()) {
+        ESP32BASE_LOG_W("FanWeb", "stop_request_failed");
+        Esp32BaseWeb::sendJson(500, "{\"ok\":false,\"error\":\"stop save failed\"}");
+        return;
+    }
     Esp32BaseWeb::sendJson(200, "{\"ok\":true}");
 }
 
@@ -574,50 +586,60 @@ void FanWeb::handleApiConfig() {
             has_auto_restore = true;
         }
 
+        bool write_ok = true;
         if (has_min_speed && min_speed != _controller->getMinEffectiveSpeed()) {
-            _controller->setMinEffectiveSpeed(min_speed);
-            changed++;
+            bool applied = _controller->setMinEffectiveSpeed(min_speed);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
         if (has_soft_start && soft_start != _controller->getSoftStartTime()) {
-            _controller->setSoftStartTime(soft_start);
-            changed++;
+            bool applied = _controller->setSoftStartTime(soft_start);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
         if (has_soft_stop && soft_stop != _controller->getSoftStopTime()) {
-            _controller->setSoftStopTime(soft_stop);
-            changed++;
+            bool applied = _controller->setSoftStopTime(soft_stop);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
         if (has_block_detect && block_detect != _controller->getBlockDetectTime()) {
-            _controller->setBlockDetectTime(block_detect);
-            changed++;
+            bool applied = _controller->setBlockDetectTime(block_detect);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
         if (has_sleep_wait && sleep_wait != _controller->getSleepWaitTime()) {
-            _controller->setSleepWaitTime(sleep_wait);
-            changed++;
+            bool applied = _controller->setSleepWaitTime(sleep_wait);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
         if (has_led_flash_ms && led_flash_ms != _controller->getLedFlashDuration()) {
-            _controller->setLedFlashDuration(led_flash_ms);
-            changed++;
+            bool applied = _controller->setLedFlashDuration(led_flash_ms);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
         if (has_runtime_save_min && runtime_save_min != _controller->getRuntimeSaveIntervalMinutes()) {
-            _controller->setRuntimeSaveIntervalMinutes(runtime_save_min);
-            changed++;
+            bool applied = _controller->setRuntimeSaveIntervalMinutes(runtime_save_min);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
         if (has_auto_restore && auto_restore != _controller->getAutoRestore()) {
-            _controller->setAutoRestore(auto_restore);
-            changed++;
+            bool applied = _controller->setAutoRestore(auto_restore);
+            write_ok = applied && write_ok;
+            if (applied) changed++;
         }
 
         bool flushed = Esp32BaseConfig::flushAll();
-        if (flushed && changed > 0) {
+        bool ok = write_ok && flushed;
+        if (ok && changed > 0) {
             _controller->notifyUserAction();
         }
-        ESP32BASE_LOG_I("FanWeb", "config_save_complete changed=%u flushed=%u",
-                          (unsigned)changed, flushed ? 1U : 0U);
+        ESP32BASE_LOG_I("FanWeb", "config_save_complete changed=%u write_ok=%u flushed=%u",
+                          (unsigned)changed, write_ok ? 1U : 0U, flushed ? 1U : 0U);
         char buf[320];
         snprintf(buf, sizeof(buf),
             "{\"ok\":%s,\"changed\":%u,\"flushed\":%s,\"data\":{\"min_effective_speed\":%d,\"soft_start\":%d,\"soft_stop\":%d,"
             "\"block_detect\":%d,\"sleep_wait\":%d,\"led_flash_ms\":%d,\"runtime_save_min\":%u,\"auto_restore\":%s}}",
-            flushed ? "true" : "false",
+            ok ? "true" : "false",
             (unsigned)changed,
             flushed ? "true" : "false",
             _controller->getMinEffectiveSpeed(),
@@ -629,7 +651,7 @@ void FanWeb::handleApiConfig() {
             _controller->getRuntimeSaveIntervalMinutes(),
             _controller->getAutoRestore() ? "true" : "false"
         );
-        Esp32BaseWeb::sendJson(flushed ? 200 : 500, buf);
+        Esp32BaseWeb::sendJson(ok ? 200 : 500, buf);
     } else {
         char buf[320];
         snprintf(buf, sizeof(buf),

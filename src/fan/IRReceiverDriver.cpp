@@ -81,6 +81,13 @@ IREvent IRReceiverDriver::getEvent() {
         return IR_EVENT_NONE;
     }
 
+    if ((int)results.decode_type > 255) {
+        _irrecv.resume();
+        ESP32BASE_LOG_W("IR", "Ignored unsupported IR protocol id=%d, code=0x%08llX",
+                          (int)results.decode_type, static_cast<unsigned long long>(results.value));
+        return IR_EVENT_NONE;
+    }
+
     // Store decoded info
     _last_protocol = (uint8_t)results.decode_type;
     _last_code = results.value;

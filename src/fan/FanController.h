@@ -45,21 +45,21 @@ public:
 
     // Configuration getters/setters
     uint8_t getMinEffectiveSpeed() const;
-    void setMinEffectiveSpeed(uint8_t speed);
+    bool setMinEffectiveSpeed(uint8_t speed);
     uint16_t getSoftStartTime() const;
-    void setSoftStartTime(uint16_t ms);
+    bool setSoftStartTime(uint16_t ms);
     uint16_t getSoftStopTime() const;
-    void setSoftStopTime(uint16_t ms);
+    bool setSoftStopTime(uint16_t ms);
     uint16_t getBlockDetectTime() const;
-    void setBlockDetectTime(uint16_t ms);
+    bool setBlockDetectTime(uint16_t ms);
     uint16_t getSleepWaitTime() const;
-    void setSleepWaitTime(uint16_t seconds);
+    bool setSleepWaitTime(uint16_t seconds);
     bool getAutoRestore() const;
-    void setAutoRestore(bool enable);
+    bool setAutoRestore(bool enable);
     uint16_t getLedFlashDuration() const;
-    void setLedFlashDuration(uint16_t ms);
+    bool setLedFlashDuration(uint16_t ms);
     uint8_t getRuntimeSaveIntervalMinutes() const;
-    void setRuntimeSaveIntervalMinutes(uint8_t minutes);
+    bool setRuntimeSaveIntervalMinutes(uint8_t minutes);
 
 private:
     void _handleIdle();
@@ -74,7 +74,7 @@ private:
     void _processSleep();
 
     bool _applySpeed(uint8_t speed, bool force_save = false);
-    void _saveRuntimeState(bool force = false);
+    bool _saveRuntimeState(bool force = false);
     void _syncGearFromSpeed(uint8_t speed);
     void _updateLedStatus();
     void _loadConfig();

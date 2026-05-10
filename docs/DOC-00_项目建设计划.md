@@ -26,11 +26,11 @@
 | Full profile | 已配置 | `ESP32BASE_PROFILE_FULL` |
 | IR 依赖 | 已引入 | `crankyoldgit/IRremoteESP8266@^2.8.6` |
 | 编译状态 | 已通过 | `pio run -e esp32dev` 通过 |
-| 测试状态 | 已通过 | `pio test -e native`，8 个用例通过 |
+| 测试状态 | 已通过 | `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、应用路由注册、Config audit 启用和 BOOT 清 WiFi 时序 |
 | 烧录状态 | 已通过 | `/dev/cu.usbserial-130`，115200 上传成功；`/dev/cu.usbserial-120` 是 ESP8266 |
 | Web OTA CLI | 已接入 | 使用 Esp32Base `scripts/esp32base_webota.py` 的 `webota` target |
 | 启动状态 | 已通过 | 进入 `ESP32-Config-65E4` 配网 AP，Web server ready |
-| 业务代码迁移 | 已完成基础闭环 | 仍需实机验证 PWM/RPM/OTA |
+| 业务代码迁移 | 已完成基础闭环 | Web OTA 基本上传已验证；仍需实机验证 PWM/RPM、真实风扇堵转/恢复和 OTA 异常路径 |
 | WiFi 配网与 Web/API | 已完成首轮验证 | 用户已完成 AP 配网，设备在局域网可访问 |
 
 ## 3. 阶段计划
@@ -99,7 +99,7 @@
 目标：
 
 - 使用真实 ESP32 和四线风扇验证硬件行为。
-- 记录示波器/RPM/网页/API/OTA/断电恢复结果。
+- 记录示波器/RPM/网页/API/OTA 异常路径/断电恢复结果。
 
 验收：
 

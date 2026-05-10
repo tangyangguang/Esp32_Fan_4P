@@ -40,6 +40,7 @@ private:
     uint8_t _tach_pin;
     uint8_t _current_speed;
     uint8_t _target_speed;
+    uint8_t _ramp_start_speed;
     uint16_t _soft_start_time;
     uint16_t _soft_stop_time;
     uint16_t _block_detect_time;
