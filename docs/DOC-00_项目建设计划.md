@@ -27,9 +27,9 @@
 | IR 依赖 | 已引入 | `crankyoldgit/IRremoteESP8266@^2.8.6` |
 | 编译状态 | 已通过 | `pio run -e esp32dev` 通过 |
 | 测试状态 | 已通过 | `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、应用路由注册、Config audit 启用和 BOOT 清 WiFi 时序 |
-| 烧录状态 | 已通过 | `/dev/cu.usbserial-130`，115200 上传成功；`/dev/cu.usbserial-120` 是 ESP8266 |
+| 烧录状态 | 已通过 | 串口上传已验证；每次烧录前重新确认实际 ESP32 串口，上传速率固定为 115200 |
 | Web OTA CLI | 已接入 | 使用 Esp32Base `scripts/esp32base_webota.py` 的 `webota` target |
-| 启动状态 | 已通过 | 进入 `ESP32-Config-65E4` 配网 AP，Web server ready |
+| 启动状态 | 已通过 | AP 配网和 Web server ready 已完成首轮验证 |
 | 业务代码迁移 | 已完成基础闭环 | Web OTA 基本上传已验证；仍需实机验证 PWM/RPM、真实风扇堵转/恢复和 OTA 异常路径 |
 | WiFi 配网与 Web/API | 已完成首轮验证 | 用户已完成 AP 配网，设备在局域网可访问 |
 
@@ -80,19 +80,13 @@
 
 当前结果：
 
-- AP 配网完成后，`esp32-fan.local` 解析到 `192.168.2.112`。
-- `/esp32base/api/status` 返回 `profile=FULL`、`wifi.connected=true`。
-- 直接 IP 访问 `/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop` 均成功。
-- 直接 IP 访问 `/esp32base/logs` 和 `/esp32base/ota` 页面均返回 HTTP 200。
-- 已通过 `/esp32base/ota` 上传同版本固件，上传返回 `{"ok":true}`，重启后 `/esp32base/api/status`、`/api/status`、`/fan`、`/esp32base/logs` 均恢复正常。
+- AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs` 和 `/esp32base/ota` 已完成首轮实机验证；具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。
+- 已通过 `/esp32base/ota` 上传固件，重启后基础库状态、业务 API、`/fan` 和日志页恢复正常。
 - 已接入并验证 `pio run -e esp32dev -t webota`。
-- 已临时设置 `sleep_wait=3` 验证 WiFi power save，进入 `sleep` 状态后 `/api/status` 仍可访问；验证后恢复 `sleep_wait=60`。
+- 已验证 WiFi power save 后 `/api/status` 仍可访问；具体测试参数以当次验证记录为准。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
 - Web Auth 已使用 Esp32Base 内置持久化能力，默认账号密码由应用提供，修改入口为 `/esp32base/auth`。
-- 当前设备持久化 Auth 已通过 Esp32Base 内置页面改为 `admin/admin`，旧 `admin/admin123` 已返回 401。
-- 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出，默认 30 分钟最多一次。
-- 新版 Esp32Base NTP 未同步状态已降噪，不再周期性输出 `ntp_sync_pending` WARN。
-- `esp32-fan.local` 访问存在约 5 秒解析等待，直接 IP 访问无此等待；暂判断为客户端侧 mDNS 解析延迟。
+- Esp32Base Health tick、NTP 未同步降噪和 mDNS 首次解析延迟已完成首轮观察；mDNS 若多设备稳定复现明显延迟，再反馈 Esp32Base。
 
 ### 阶段 4：实机验收
 
@@ -112,7 +106,6 @@
 
 | 优先级 | 工作 | 类型 | 阻塞 |
 | --- | --- | --- | --- |
-| P0 | 实机验证 PWM 25 kHz 和占空比 | 硬件验证 | 需要 ESP32 和示波器 |
 | P0 | 实机验证 TACH RPM 和堵转保护 | 硬件验证 | 需要四线风扇 |
 | P1 | 记录 mDNS 解析延迟观察 | 基础库验证 | 若持续影响浏览器访问，再反馈基础库 |
 | P2 | 根据实机结果微调 GPIO/页面/参数默认值 | 本项目 | 依赖实机反馈 |
@@ -121,7 +114,7 @@
 ## 5. 下一步计划
 
 1. 在浏览器中人工检查 `/esp32base`、`/fan`、`/config`、`/esp32base/logs` 的页面交互体验。
-2. 用示波器验证 GPIO25 PWM 频率和占空比。
-3. 接入四线风扇验证 TACH RPM、堵转保护和软启动/停止。
-4. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
+2. 接入四线风扇验证 TACH RPM 和堵转保护。
+3. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
+4. 验证两键同时长按 5 秒出厂重置。
 5. 根据实机结果更新文档、默认参数和 GitHub 仓库。

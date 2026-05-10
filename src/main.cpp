@@ -36,7 +36,13 @@ void setup() {
     Esp32Base::setFirmwareInfo("ESP32_Fan_4P", "0.1.0");
     Esp32Base::setHostname("esp32-fan");
     fanAppConfigureBaseWebBeforeBegin();
-    fanAppRegisterFanRoutes();
+    if (!fanAppRegisterFanRoutes()) {
+        Serial.println("Fan route registration failed");
+        while (true) {
+            delay(1000);
+            yield();
+        }
+    }
     fanAppEnableConfigAuditBeforeBegin();
 
     if (!Esp32Base::begin()) {

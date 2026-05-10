@@ -104,7 +104,7 @@
 
 | 需求 | 本项目模块 | Esp32Base 模块 | 当前状态 |
 | --- | --- | --- | --- |
-| F-01, F-02, F-03, F-13 | FanDriver | Log | 已实现，待 PWM/TACH 实机仪器验证 |
+| F-01, F-02, F-03, F-13 | FanDriver | Log | 已实现，PWM 和软启动/停止已实测通过，待 TACH 实机仪器验证 |
 | F-04, F-19 | ButtonDriver, LedIndicator | Log | 已实现，native 测试通过，待硬件操作验证 |
 | F-05 | IRReceiverDriver, FanWeb | Web, Config, Log | 已实现，待真实遥控器验证 |
 | F-06, F-12, S-01 | FanController | Config, Log | 已实现，native 测试通过；累计运行时长当前不升级 64-bit |

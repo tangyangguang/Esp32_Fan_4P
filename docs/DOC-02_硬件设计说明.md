@@ -55,7 +55,7 @@
 - TACH 需要上拉到 3.3 V，不能直接上拉到 12 V。
 - PWM 输入规格需按风扇数据手册确认；若要求 5 V/open-drain，应增加三极管/MOS 管适配。
 - 未接风扇时，非零输出会触发堵转保护，这是正常保护行为。
-- Arduino ESP32 Core 2.x 路径下 Fan PWM 使用 LEDC channel 0，LED 指示使用 channel 1；Esp32Base 后续如新增 LEDC 资源，应避免复用这两个 channel 或先提供统一分配能力。
+- Arduino ESP32 Core 2.x 路径下 Fan PWM 使用 LEDC channel 0，LED 指示使用 channel 2；避免使用 channel 1，防止与 channel 0 共享 timer 后把风扇 25 kHz 覆盖为 LED 的 1 kHz。Esp32Base 后续如新增 LEDC 资源，应避免复用这些 channel 或先提供统一分配能力。
 
 ## 5. 电源设计
 
@@ -78,8 +78,9 @@
 
 ## 7. 后续实机验证
 
-- PWM 频率：示波器确认 25 kHz。
-- PWM 占空比：0/25/50/75/100% 校验。
+- PWM 频率：GPIO25 已用示波器确认 25 kHz。
+- PWM 占空比：0/25/50/75/100% 已用示波器校验；Rigol DS1202 自动测量需设置合适测量时长，避免 75% 被短窗口误判。
+- 软启动/软停止：已用示波器验证通过。
 - TACH RPM：与外部转速计对照，误差 <= 5%。
 - WiFi power save：确认进入省电后 Web 仍可访问。
 - OTA：上传、失败回滚和日志观察。

@@ -93,8 +93,12 @@ void fanAppHandleBootButton(uint8_t pin, BootClearState* state) {
         now - state->press_start_ms >= BOOT_CLEAR_WIFI_MS) {
         state->action_done = true;
         ESP32BASE_LOG_W("main", "BOOT held 5s, clearing WiFi credentials");
-        Esp32BaseConfig::flushAll();
-        Esp32BaseWiFi::clearCredentials();
+        bool ok = Esp32BaseConfig::flushAll();
+        ok = Esp32BaseWiFi::clearCredentials() && ok;
+        if (!ok) {
+            ESP32BASE_LOG_E("main", "BOOT clear WiFi failed; restart skipped");
+            return;
+        }
         delay(300);
         ESP.restart();
     }

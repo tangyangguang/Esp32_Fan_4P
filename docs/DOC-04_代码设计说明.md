@@ -57,7 +57,7 @@
 
 - ISR 只递增 `volatile` 计数，不写日志，不访问配置。
 - 默认按 2 pulse/revolution 计算 RPM。
-- PWM 分辨率默认 8 bit，频率默认 25 kHz。
+- PWM 分辨率默认 10 bit，频率默认 25 kHz。
 - Arduino ESP32 Core 2.x 使用 `ledcSetup/ledcAttachPin`；代码已为 Core 3.x 增加 `ledcAttach` 条件编译分支，但当前项目仍以 Core 2.x 构建为准，Core 3.x 需独立构建和 PWM 实测确认。
 
 ## 4. FanController 设计
@@ -180,25 +180,15 @@ API：
 当前验证：
 
 - `pio run -e esp32dev` 通过。
-- `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用和 BOOT 清 WiFi 时序。
-- `pio run -e esp32dev -t upload --upload-port /dev/cu.usbserial-130` 通过。
+- `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用、BOOT 清 WiFi 时序、持久化失败事务边界和 IR 保存失败回滚。
+- 串口上传已验证；每次烧录前应重新确认实际串口，上传速率固定为 115200。
 - `pio run -e esp32dev -t webota` 通过，使用 Esp32Base `scripts/esp32base_webota.py`。
-- 串口启动日志确认当前进入 `ESP32-Config-65E4` 配网 AP，`web server ready`，FanController 初始化完成。
-- 当前设备持久化 Auth 已通过 Esp32Base 内置页面改为 `admin/admin`，旧 `admin/admin123` 已返回 401。
-- AP 配网后设备 IP 为 `192.168.2.112`，`esp32-fan.local` 可解析。
-- `http://192.168.2.112/api/status` 返回风扇状态、IP、RSSI、网络状态。
-- `http://192.168.2.112/fan` 和 `http://192.168.2.112/config` 页面可完整返回。
-- `POST http://192.168.2.112/api/speed speed=35`、`/api/timer seconds=60`、`/api/stop` 均返回成功。
-- `http://192.168.2.112/esp32base/api/status` 返回 Esp32Base Full profile、heap、flash、WiFi connected 状态。
-- `http://192.168.2.112/esp32base/logs` 和 `http://192.168.2.112/esp32base/ota` 页面 GET 返回 HTTP 200。
-- `POST http://192.168.2.112/esp32base/ota` 上传当前 `firmware.bin` 返回 `{"ok":true}`，重启后基础库和业务页面/API 恢复正常。
-- `http://192.168.2.112/esp32base/auth` 页面 GET 返回 HTTP 200。
-- 临时设置 `sleep_wait=3` 后设备进入 `sleep` 状态，`/api/status` 仍可访问；验证后已恢复 `sleep_wait=60`。
+- AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs`、`/esp32base/auth` 和 `/esp32base/ota` 已完成首轮实机验证；具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。
+- 已通过 `/esp32base/ota` 上传固件，重启后基础库和业务页面/API 恢复正常。
+- 已验证 WiFi power save 后 `/api/status` 仍可访问；具体测试参数以当次验证记录为准。
 - `/fan` 和 `/config` 通过 `Esp32BaseWeb::addPage(path, title, handler)` 注册为业务入口，`/esp32base` 首页和内置顶栏已展示 Fan、Settings。
-- 新版 Esp32Base Health 已验证：历史日志仍有旧 `INFO health tick`，新固件启动后的 health tick 以 `DEBUG` 输出，默认 30 分钟最多一次。
-- 新版 Esp32Base NTP 未同步状态已降噪，不再周期性输出 `ntp_sync_pending` WARN。
+- Esp32Base Health tick 和 NTP 未同步降噪已完成首轮观察。
 
 观察项：
 
-- 使用 `esp32-fan.local` 通过 curl 访问时，首次解析约等待 5 秒；直接 IP 访问业务接口响应约 0.1-1.0 秒。
-- 当前判断这是客户端侧 mDNS 解析表现，不作为本项目阻塞项；若浏览器长期复现明显延迟，再整理为 Esp32Base mDNS 体验优化提示词。
+- mDNS 首次解析延迟不作为本项目阻塞项；若多设备稳定复现明显延迟，再整理为 Esp32Base mDNS 体验优化提示词。

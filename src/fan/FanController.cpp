@@ -220,6 +220,9 @@ bool FanController::setSpeed(uint8_t speed) {
     if (speed > 0 && speed < _min_effective_speed) {
         speed = _min_effective_speed;
     }
+    if (speed == 0) {
+        return stop();
+    }
 
     const uint8_t old_target = _target_speed;
     const uint8_t old_gear = _current_gear;
@@ -228,8 +231,11 @@ bool FanController::setSpeed(uint8_t speed) {
 
     bool ok = true;
     if (_state == SYS_ERROR || _state == SYS_RECOVERING) {
-        if (speed == 0) {
-            return stop();
+        if (!_saveRuntimeState(true)) {
+            _target_speed = old_target;
+            _current_gear = old_gear;
+            ESP32BASE_LOG_W("FanCtrl", "Speed save failed before recovery: target=%u", (unsigned)speed);
+            return false;
         }
         if (!_recovery_attempting) {
             _fan.resetBlock();
@@ -238,15 +244,13 @@ bool FanController::setSpeed(uint8_t speed) {
         }
         _state = SYS_RECOVERING;
         ok = _fan.setSpeed(speed);
-        if (ok) {
-            ok = _saveRuntimeState(true);
-        }
     } else {
         ok = _applySpeed(speed, true);
     }
     if (!ok) {
         _target_speed = old_target;
         _current_gear = old_gear;
+        _saveRuntimeState(true);
         ESP32BASE_LOG_W("FanCtrl", "Speed request failed: target=%u", (unsigned)speed);
         return false;
     }
@@ -300,16 +304,14 @@ bool FanController::stop() {
     _target_speed = 0;
     _current_gear = 0;
     _recovery_attempting = false;
-    if (_state == SYS_ERROR || _state == SYS_RECOVERING || _fan.isBlocked()) {
-        _fan.resetBlock();
-        _state = SYS_IDLE;
-    }
+    _state = SYS_IDLE;
     if (!_applySpeed(0, true)) {
         _timer_remaining = old_timer;
         _target_speed = old_target;
         _current_gear = old_gear;
         _state = old_state;
         _recovery_attempting = old_recovery_attempting;
+        _saveRuntimeState(true);
         ESP32BASE_LOG_W("FanCtrl", "Stop request failed");
         return false;
     }
@@ -330,21 +332,25 @@ bool FanController::resetFactory() {
     return true;
 }
 
-bool FanController::clearIRCode(uint8_t key_index) {
-    if (key_index >= IR_KEY_COUNT) return false;
+IRCodeChangeResult FanController::clearIRCode(uint8_t key_index) {
+    if (key_index >= IR_KEY_COUNT) return IR_CODE_SAVE_FAILED;
 
     uint8_t proto = 0;
     uint64_t code = 0;
     _ir.getKeyCode(key_index, &proto, &code);
-    if (proto == 0 && code == 0) return false;
+    if (proto == 0 && code == 0) return IR_CODE_NO_CHANGE;
 
     char key[20];
     snprintf(key, sizeof(key), "%s%d", KEY_IR_ENTRY, key_index);
-    _ir.setKeyCode(key_index, 0, 0);
     bool ok = cfgSetStr(key, "");
     ok = Esp32BaseConfig::flushAll() && ok;
-    ESP32BASE_LOG_I("FanCtrl", "IR code cleared key=%u result=%s", key_index, ok ? "success" : "failed");
-    return ok;
+    if (!ok) {
+        ESP32BASE_LOG_W("FanCtrl", "IR code clear failed key=%u", key_index);
+        return IR_CODE_SAVE_FAILED;
+    }
+    _ir.setKeyCode(key_index, 0, 0);
+    ESP32BASE_LOG_I("FanCtrl", "IR code cleared key=%u", key_index);
+    return IR_CODE_CHANGED;
 }
 
 void FanController::notifyUserAction() {
@@ -579,9 +585,12 @@ void FanController::_processIREvents() {
     IREvent event = _ir.getEvent();
     if (_ir.consumeLearnedCode()) {
         uint8_t key = _ir.getLearnedKeyIndex();
-        _saveIRCode(key);
-        notifyUserAction();
-        ESP32BASE_LOG_I("FanCtrl", "IR learned code persisted key=%u", key);
+        if (_saveIRCode(key)) {
+            notifyUserAction();
+            ESP32BASE_LOG_I("FanCtrl", "IR learned code persisted key=%u", key);
+        } else {
+            ESP32BASE_LOG_W("FanCtrl", "IR learned code persist failed key=%u", key);
+        }
     }
     if (event == IR_EVENT_NONE) return;
 
@@ -661,8 +670,11 @@ void FanController::_processTimer() {
     if (!timer_changed) return;
 
     if (_timer_remaining == 0) {
-        stop();
-        ESP32BASE_LOG_I("FanCtrl", "Timer expired, fan stopped");
+        if (stop()) {
+            ESP32BASE_LOG_I("FanCtrl", "Timer expired, fan stopped");
+        } else {
+            ESP32BASE_LOG_W("FanCtrl", "Timer expired but stop failed");
+        }
     } else if (_timer_remaining <= 60 && _timer_remaining % 10 == 0) {
         ESP32BASE_LOG_D("FanCtrl", "Timer remaining: %lus", static_cast<unsigned long>(_timer_remaining));
     }
@@ -701,13 +713,17 @@ uint32_t FanController::_recoveryTimeoutMs() const {
 }
 
 bool FanController::_applySpeed(uint8_t speed, bool force_save) {
+    if (force_save && !_saveRuntimeState(true)) {
+        return false;
+    }
     bool ok = _fan.setSpeed(speed);
     if (ok) {
         if (speed > 0) {
             _state = SYS_RUNNING;
             _last_run_tick = millis();
         }
-        ok = _saveRuntimeState(force_save);
+    } else if (force_save) {
+        ESP32BASE_LOG_W("FanCtrl", "Fan driver rejected speed=%u after runtime save", (unsigned)speed);
     }
     return ok;
 }
@@ -815,29 +831,45 @@ void FanController::_loadConfig() {
     }
 }
 
-void FanController::_saveIRCode(uint8_t key_index) {
-    if (key_index >= IR_KEY_COUNT) return;
+bool FanController::_saveIRCode(uint8_t key_index) {
+    if (key_index >= IR_KEY_COUNT) return false;
 
     char key[20];
     uint8_t proto;
     uint64_t code;
     _ir.getKeyCode(key_index, &proto, &code);
-    if (proto == 0 && code == 0) return;
+    if (proto == 0 && code == 0) return true;
 
     char value[32];
     char current[32];
     snprintf(key, sizeof(key), "%s%d", KEY_IR_ENTRY, key_index);
     snprintf(value, sizeof(value), "%u:%016llX", proto, static_cast<unsigned long long>(code));
-    if (cfgGetStr(key, current, sizeof(current), "")) {
+    bool hadCurrent = cfgGetStr(key, current, sizeof(current), "");
+    if (hadCurrent) {
         uint8_t currentProto = 0;
         uint64_t currentCode = 0;
         if (parseIRCodeEntry(current, &currentProto, &currentCode) &&
             currentProto == proto && currentCode == code) {
             ESP32BASE_LOG_I("FanCtrl", "IR learned code unchanged key=%u", key_index);
-            return;
+            return true;
         }
     }
-    cfgSetStr(key, value);
+    bool ok = cfgSetStr(key, value);
+    ok = Esp32BaseConfig::flushAll() && ok;
+    if (!ok) {
+        uint8_t oldProto = 0;
+        uint64_t oldCode = 0;
+        if (hadCurrent && parseIRCodeEntry(current, &oldProto, &oldCode)) {
+            _ir.setKeyCode(key_index, oldProto, oldCode);
+            cfgSetStr(key, current);
+        } else {
+            _ir.setKeyCode(key_index, 0, 0);
+            cfgSetStr(key, "");
+        }
+        Esp32BaseConfig::flushAll();
+        return false;
+    }
+    return true;
 }
 
 #ifdef UNIT_TEST

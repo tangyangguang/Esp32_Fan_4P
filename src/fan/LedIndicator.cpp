@@ -16,7 +16,7 @@
 #endif
 
 namespace {
-const uint8_t LED_PWM_CHANNEL = 1;
+const uint8_t LED_PWM_CHANNEL = 2;
 }
 
 LedIndicator::LedIndicator(uint8_t pin, bool active_low)

@@ -126,10 +126,11 @@ static const char FAN_SCRIPT_TIMER_MID[] PROGMEM =
     "function tt(o,t){var w=document.getElementById('targetTopWrap');if(w)w.style.display=o==t?'none':''}"
     "var pollMs=3000,pollTimer=0;function draw(d){var st=d.blocked?(d.state=='Error'?'Error / Blocked':'Blocked'):d.state;e('st',st);document.getElementById('st').className=d.blocked?'errtxt':'';e('tgt',d.target_speed+'%');e('tgtTop',d.target_speed);e('out',d.speed+'%');e('outTop',d.speed);e('rpmTop',(d.rpm||0)+' rpm');tt(d.speed,d.target_speed);e('gear',d.gear);e('rpm',(d.rpm||0)+' rpm');e('tim',tf(d.timer_remaining));e('runTotal',rf(d.run_duration));e('runBoot',rf(d.boot_run_duration));e('rssi',d.rssi+' dBm');rem=d.timer_remaining;pollMs=d.speed==d.target_speed?3000:500;document.getElementById('sv').value=d.target_speed;document.getElementById('tv').value=Math.floor(rem/60)}"
     "function sched(ms){clearTimeout(pollTimer);pollTimer=setTimeout(poll,ms)}function poll(){fetch('/api/status').then(r=>r.json()).then(j=>{if(j.ok)draw(j.data);sched(pollMs)}).catch(()=>sched(3000))}"
-    "function post(u,b,cb){fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b}).then(()=>{if(cb)cb();setTimeout(poll,250)})}"
-    "function spd(v){v=parseInt(v||0);if(v>=0&&v<=100){e('tgt',v+'%');e('tgtTop',v);e('rpmTop','-- rpm');e('rpm','-- rpm');tt(parseInt(document.getElementById('outTop').textContent||0),v);document.getElementById('sv').value=v;post('/api/speed','speed='+v)}}"
-    "function tm(v){v=parseInt(v||0);if(v>=0&&v<=5940){rem=v*60;e('tim',tf(rem));document.getElementById('tv').value=v;post('/api/timer','seconds='+rem)}}"
-    "function stopFan(){rem=0;e('tim','Off');e('tgt','0%');e('tgtTop','0');e('outTop','0');e('rpmTop','-- rpm');e('rpm','-- rpm');tt(0,0);post('/api/stop','')}"
+    "function fail(){e('st','Command failed');document.getElementById('st').className='errtxt';setTimeout(poll,250)}"
+    "function post(u,b,cb){fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b}).then(r=>r.json().then(j=>{if(!r.ok||j.ok===false)throw j;return j})).then(j=>{if(cb)cb(j);setTimeout(poll,250)}).catch(fail)}"
+    "function spd(v){v=parseInt(v||0);if(v>=0&&v<=100){post('/api/speed','speed='+v,function(){e('tgt',v+'%');e('tgtTop',v);e('rpmTop','-- rpm');e('rpm','-- rpm');tt(parseInt(document.getElementById('outTop').textContent||0),v);document.getElementById('sv').value=v})}}"
+    "function tm(v){v=parseInt(v||0);if(v>=0&&v<=5940){post('/api/timer','seconds='+(v*60),function(){rem=v*60;e('tim',tf(rem));document.getElementById('tv').value=v})}}"
+    "function stopFan(){post('/api/stop','',function(){rem=0;e('tim','Off');e('tgt','0%');e('tgtTop','0');e('outTop','0');e('rpmTop','-- rpm');e('rpm','-- rpm');tt(0,0)})}"
     "function uiTick(){if(rem>0)rem--;e('tim',tf(rem))}"
     "setInterval(uiTick,1000);sched(3000)"
     "</script>";
@@ -677,10 +678,15 @@ void FanWeb::handleApiIrLearn() {
         uint32_t idx = 0;
         if (parseUintParam("key_index", 0, IR_KEY_COUNT - 1, &idx)) {
             if (Esp32BaseWeb::hasParam("clear")) {
-                bool changed = _controller->clearIRCode(static_cast<uint8_t>(idx));
+                IRCodeChangeResult result = _controller->clearIRCode(static_cast<uint8_t>(idx));
+                bool changed = result == IR_CODE_CHANGED;
                 if (changed) _controller->notifyUserAction();
                 ESP32BASE_LOG_I("FanWeb", "user_action ir_clear key=%lu changed=%u",
                                   static_cast<unsigned long>(idx), changed ? 1U : 0U);
+                if (result == IR_CODE_SAVE_FAILED) {
+                    Esp32BaseWeb::sendJson(500, "{\"ok\":false,\"error\":\"ir save failed\"}");
+                    return;
+                }
                 char buf[64];
                 snprintf(buf, sizeof(buf), "{\"ok\":true,\"changed\":%s}", changed ? "true" : "false");
                 Esp32BaseWeb::sendJson(200, buf);

@@ -3,21 +3,22 @@
 #include <Arduino.h>
 #include <Esp32Base.h>
 
-#ifndef ESP32_FAN_PWM_FREQ
-#define ESP32_FAN_PWM_FREQ 25000
-#endif
-
 #ifndef ESP32_FAN_PWM_RESOLUTION
-#define ESP32_FAN_PWM_RESOLUTION 8
+#define ESP32_FAN_PWM_RESOLUTION 10
 #endif
 
 namespace {
 const uint8_t PWM_CHANNEL = 0;
-const uint32_t PWM_MAX_DUTY = (1UL << ESP32_FAN_PWM_RESOLUTION) - 1UL;
+const uint32_t PWM_FREQ_HZ = 25000UL;
+const uint32_t PWM_DUTY_STEPS = (1UL << ESP32_FAN_PWM_RESOLUTION);
+const uint32_t PWM_MAX_DUTY = PWM_DUTY_STEPS - 1UL;
 
 uint32_t speedToDuty(uint8_t speed) {
     if (speed > 100) speed = 100;
-    return (static_cast<uint32_t>(speed) * PWM_MAX_DUTY) / 100UL;
+    if (speed == 0) return 0;
+    if (speed >= 100) return PWM_MAX_DUTY;
+    uint32_t duty = (static_cast<uint32_t>(speed) * PWM_DUTY_STEPS + 50UL) / 100UL;
+    return duty > PWM_MAX_DUTY ? PWM_MAX_DUTY : duty;
 }
 }
 
@@ -45,15 +46,16 @@ FanDriver::FanDriver(uint8_t pwm_pin, uint8_t tach_pin)
 
 bool FanDriver::begin() {
     pinMode(_pwm_pin, OUTPUT);
+    digitalWrite(_pwm_pin, LOW);
 #ifdef UNIT_TEST
     analogWrite(_pwm_pin, 0);
 #elif defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
-    ledcAttach(_pwm_pin, ESP32_FAN_PWM_FREQ, ESP32_FAN_PWM_RESOLUTION);
+    ledcAttach(_pwm_pin, PWM_FREQ_HZ, ESP32_FAN_PWM_RESOLUTION);
     ledcWrite(_pwm_pin, 0);
 #else
-    ledcSetup(PWM_CHANNEL, ESP32_FAN_PWM_FREQ, ESP32_FAN_PWM_RESOLUTION);
-    ledcAttachPin(_pwm_pin, PWM_CHANNEL);
+    ledcSetup(PWM_CHANNEL, PWM_FREQ_HZ, ESP32_FAN_PWM_RESOLUTION);
     ledcWrite(PWM_CHANNEL, 0);
+    ledcAttachPin(_pwm_pin, PWM_CHANNEL);
 #endif
 
     pinMode(_tach_pin, INPUT_PULLUP);
@@ -64,17 +66,18 @@ bool FanDriver::begin() {
     _last_rpm_update_ms = millis();
     _block_start_tick = millis();
     ESP32BASE_LOG_I("FanDrv", "Initialized: PWM=GPIO%d, TACH=GPIO%d, freq=%luHz",
-                    _pwm_pin, _tach_pin, static_cast<unsigned long>(ESP32_FAN_PWM_FREQ));
+                    _pwm_pin, _tach_pin, static_cast<unsigned long>(PWM_FREQ_HZ));
     return true;
 }
 
 void FanDriver::_writePwm(uint8_t speed) {
+    const uint32_t duty = speedToDuty(speed);
 #ifdef UNIT_TEST
-    analogWrite(_pwm_pin, static_cast<uint8_t>(speedToDuty(speed)));
+    analogWrite(_pwm_pin, static_cast<uint8_t>(duty));
 #elif defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
-    ledcWrite(_pwm_pin, speedToDuty(speed));
+    ledcWrite(_pwm_pin, duty);
 #else
-    ledcWrite(PWM_CHANNEL, speedToDuty(speed));
+    ledcWrite(PWM_CHANNEL, duty);
 #endif
 }
 
@@ -159,7 +162,7 @@ void FanDriver::tick() {
 bool FanDriver::setSpeed(uint8_t speed) {
     if (speed > 100) speed = 100;
 
-    if (_state == FAN_STATE_BLOCKED) {
+    if (_state == FAN_STATE_BLOCKED && speed != 0) {
         ESP32BASE_LOG_W("FanDrv", "setSpeed(%d) rejected: blocked", speed);
         return false;
     }
@@ -176,6 +179,7 @@ bool FanDriver::setSpeed(uint8_t speed) {
                      _current_speed, static_cast<unsigned long>(_soft_stop_time));
         } else {
             _current_speed = 0;
+            _target_speed = 0;
             _writePwm(0);
             _state = FAN_STATE_IDLE;
             ESP32BASE_LOG_I("FanDrv", "Stop immediate");

@@ -17,6 +17,12 @@ enum SystemState {
     SYS_COUNT
 };
 
+enum IRCodeChangeResult {
+    IR_CODE_NO_CHANGE,
+    IR_CODE_CHANGED,
+    IR_CODE_SAVE_FAILED
+};
+
 class FanController {
 public:
     FanController(FanDriver& fan, ButtonDriver& btn, LedIndicator& led, IRReceiverDriver& ir);
@@ -41,7 +47,7 @@ public:
     bool stop();
     bool resetFactory();
     void notifyUserAction();
-    bool clearIRCode(uint8_t key_index);
+    IRCodeChangeResult clearIRCode(uint8_t key_index);
 
     // Configuration getters/setters
     uint8_t getMinEffectiveSpeed() const;
@@ -78,7 +84,7 @@ private:
     void _syncGearFromSpeed(uint8_t speed);
     void _updateLedStatus();
     void _loadConfig();
-    void _saveIRCode(uint8_t key_index);
+    bool _saveIRCode(uint8_t key_index);
     uint32_t _recoveryTimeoutMs() const;
 
 #ifdef UNIT_TEST
