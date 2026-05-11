@@ -29,7 +29,7 @@
 
 应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
 
-两键同时长按 >5s 的出厂重置行为与 ESP12F_Fan_4P 对齐：清除 `fan` namespace，并调用 Esp32Base 库 namespace 清理能力。当前 Esp32Base 会清理 `eb_wifi`、`eb_sys`、`eb_log`、`eb_web`，因此 WiFi 凭证、Web Auth、系统计数和文件日志配置也会被清除，随后重启。
+两键同时长按 >5s 的出厂重置行为与 ESP12F_Fan_4P 对齐：清除 `fan` namespace，并调用 `Esp32BaseConfig::factoryReset()` 清理 Esp32Base 持久化配置。当前 Esp32Base 会清理 WiFi、Web Auth、系统和日志配置，因此 WiFi 凭证、Web Auth、系统计数和文件日志配置也会被清除，随后重启。
 
 ## 2. 运行状态
 
@@ -39,10 +39,23 @@
 | `target_speed` | uint8_t | 用户目标速度 0-100 |
 | `current_speed` | uint8_t | 实际 PWM 输出速度 |
 | `rpm` | uint16_t | 当前转速 |
+| `tach_pulses` | uint32_t | 启动后累计 TACH 下降沿计数，用于现场诊断 |
+| `tach_level` | uint8_t | 当前 TACH 输入电平，1 为高、0 为低 |
 | `timer_remaining` | uint32_t | 剩余定时秒数 |
 | `run_duration` | uint32_t | 累计运行秒数，秒级上限满足 10 年以上运行统计 |
 | `is_blocked` | bool | 堵转保护状态 |
 | `is_sleeping` | bool | 是否进入 power save 策略 |
+
+`Total run` 清零通过独立 API 执行，只把内存中的 `run_duration` 和 NVS `fan/run_s` 置 0 并立即 flush；失败时回滚内存值。`Boot run` 是本次启动累计值，不持久化，清零 `Total run` 时不修改。
+
+RAM 历史曲线由 `FanHistory` 维护，两组环形缓冲均只保存在 RAM 中，设备重启后清空，不写 NVS、LittleFS 或日志：
+
+| 范围 | 默认点数 | 默认采样 | 自动窗口 | 用途 |
+| --- | ---: | ---: | ---: | --- |
+| short | 500 | 500 ms | 250 秒 | 观察软启动、软停止、堵转等短时变化 |
+| long | 500 | 10 s | 1 小时 23 分钟 | 观察小时级运行趋势 |
+
+单点结构为 `uint32_t t_ms + uint16_t rpm + uint8_t speed + uint8_t target_speed`，每点 8 字节。每组点数可配置为 100..1200，RAM 中保存点数等于图表显示点数；两组最大约 19.2 KB RAM，默认两组共约 8 KB RAM。每组 ring 额外维护 RAM-only `seq` 计数，API 输出时现算点序号，用于前端增量拉取，避免 `millis()` 回绕影响历史更新。
 
 ## 3. FanDriver 设计
 
@@ -87,6 +100,7 @@
 页面：
 
 - `GET /fan`：状态和控制。
+- `GET /history`：宽屏历史曲线。
 - `GET /config`：参数配置和红外学习入口。
 - Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Auth、Reboot，并通过 `addPage(path, title, handler)` 展示业务入口。
 
@@ -94,12 +108,15 @@ API：
 
 | 路径 | 参数 | 行为 |
 | --- | --- | --- |
-| `/api/status` | 无 | 返回风扇、网络、时间状态 |
+| `/api/status` | 无 | 返回风扇、TACH 诊断、网络、时间状态 |
 | `/api/speed` | `speed=0..100` | 设置或读取速度 |
 | `/api/timer` | `seconds=0..356400` | 设置或读取定时 |
 | `/api/stop` | 无 | 停止风扇 |
 | `/api/config` | 配置表单字段 | 保存或读取配置 |
+| `/api/runtime/reset` | 无，POST | 清零 Total run 和 `fan/run_s`，不清零 Boot run |
 | `/api/ir/learn` | `key_index=0..7`，可选 `clear=1` | 启动或清除红外学习码 |
+| `/api/history` | `range=short|long`，可选 `since_seq` | 分段返回 RAM 历史曲线点，点内含 `seq` 和 `t_ms` |
+| `/api/history/config` | `short_points`、`short_sample_ms`、`long_points`、`long_sample_s` | 配置 RAM 历史点数和采样周期；窗口时长自动计算 |
 
 实现约束：
 
@@ -108,6 +125,7 @@ API：
 - 业务页面不自建业务入口或 Esp32Base 系统页面导航；顶部业务入口和底部系统入口统一由 Esp32Base 输出。
 - JSON 输出优先使用固定缓冲区。
 - HTML 页面优先 `sendChunk()`，避免大 `String` 拼接。
+- 大量历史点输出必须使用 chunked response，不一次性拼接完整 JSON。
 - 用户输入进入 JSON/HTML 前要转义；当前短字段先用数值输入，后续补全字符串转义。
 
 ## 6. main.cpp 设计
@@ -115,7 +133,7 @@ API：
 职责：
 
 - 定义 ESP32 GPIO。
-- 设置 firmware info 和 hostname。
+- 设置 firmware info；默认 hostname 由 `ESP32BASE_DEFAULT_HOSTNAME` 编译宏提供。
 - 在 `Esp32Base::begin()` 前通过 `FanAppRuntime` 设置 Web Auth、业务首页和 Config audit。
 - 在 Web 启动前通过 `FanAppRuntime` 注册应用路由。
 - 启动 Esp32Base Full profile。
@@ -158,7 +176,7 @@ API：
 - WiFi power save 无法保持 Web 可访问。
 - OTA 注册和认证条件不清晰。
 
-处理方式：记录到 `docs/ESP32BASE_PROMPTS.md`，由基础库完善。
+处理方式：直接在协作回复中按功能输出提示词，由基础库完善。
 
 ## 9. 当前代码状态
 

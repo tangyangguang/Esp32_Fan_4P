@@ -195,6 +195,8 @@ uint8_t FanController::getCurrentGear() const { return _current_gear; }
 uint8_t FanController::getCurrentSpeed() const { return _fan.getSpeed(); }
 uint8_t FanController::getTargetSpeed() const { return _target_speed; }
 uint16_t FanController::getCurrentRpm() const { return _fan.getRpm(); }
+uint32_t FanController::getTachPulseTotal() const { return _fan.getTachPulseTotal(); }
+uint8_t FanController::getTachPinLevel() const { return _fan.getTachPinLevel(); }
 uint32_t FanController::getTimerRemaining() const { return _timer_remaining; }
 uint32_t FanController::getTotalRunDuration() const { return _run_duration; }
 uint32_t FanController::getBootRunDuration() const { return _boot_run_duration; }
@@ -321,13 +323,35 @@ bool FanController::stop() {
 
 bool FanController::resetFactory() {
     bool ok = Esp32BaseConfig::clearNamespace(CFG_NS);
-    ok = Esp32BaseConfig::clearLibraryNamespaces() && ok;
+    ok = Esp32BaseConfig::factoryReset() && ok;
     ok = Esp32BaseConfig::flushAll() && ok;
     if (!ok) {
         ESP32BASE_LOG_E("FanCtrl", "Factory reset failed: config clear failed");
         return false;
     }
-    ESP.restart();
+    Esp32BaseSystem::restart("factory reset");
+    return true;
+}
+
+bool FanController::resetTotalRunDuration() {
+    const uint32_t old_run_duration = _run_duration;
+    _run_duration = 0;
+    bool ok = cfgSetInt(KEY_RUN_DURATION, 0);
+    ok = Esp32BaseConfig::flushAll() && ok;
+    if (!ok) {
+        _run_duration = old_run_duration;
+        bool rollback_ok = cfgSetInt(KEY_RUN_DURATION, static_cast<int32_t>(old_run_duration));
+        rollback_ok = Esp32BaseConfig::flushAll() && rollback_ok;
+        if (!rollback_ok) {
+            ESP32BASE_LOG_W("FanCtrl", "Total run reset rollback failed value=%lu",
+                            static_cast<unsigned long>(old_run_duration));
+        }
+        ESP32BASE_LOG_W("FanCtrl", "Total run reset failed");
+        return false;
+    }
+    _last_runtime_save_tick = millis();
+    ESP32BASE_LOG_W("FanCtrl", "Total run reset by request old=%lu",
+                    static_cast<unsigned long>(old_run_duration));
     return true;
 }
 

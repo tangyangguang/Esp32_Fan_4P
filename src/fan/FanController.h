@@ -35,6 +35,8 @@ public:
     uint8_t getCurrentSpeed() const;
     uint8_t getTargetSpeed() const;
     uint16_t getCurrentRpm() const;
+    uint32_t getTachPulseTotal() const;
+    uint8_t getTachPinLevel() const;
     uint32_t getTimerRemaining() const;
     uint32_t getTotalRunDuration() const;
     uint32_t getBootRunDuration() const;
@@ -46,6 +48,7 @@ public:
     bool setTimer(uint32_t seconds);
     bool stop();
     bool resetFactory();
+    bool resetTotalRunDuration();
     void notifyUserAction();
     IRCodeChangeResult clearIRCode(uint8_t key_index);
 

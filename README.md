@@ -2,7 +2,7 @@
 
 `Esp32_Fan_4P` 是基于 ESP32 的四线 PWM 风扇控制器项目，用于壁炉烟囱正压送风场景。
 
-本项目的业务功能对齐成熟项目 `/Users/tyg/dir/claude_dir/ESP12F_Fan_4P`，但硬件平台改为 ESP32，并使用 `/Users/tyg/dir/claude_dir/Esp32Base` 提供基础能力。项目建设过程中同时验证 Esp32Base 的完整模块能力；凡是属于基础库能力缺口或 bug 的问题，记录到 [docs/ESP32BASE_PROMPTS.md](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/ESP32BASE_PROMPTS.md)，不在本项目业务代码中长期绕补丁。
+本项目的业务功能对齐成熟项目 `/Users/tyg/dir/claude_dir/ESP12F_Fan_4P`，但硬件平台改为 ESP32，并使用 `/Users/tyg/dir/claude_dir/Esp32Base` 提供基础能力。项目建设过程中同时验证 Esp32Base 的完整模块能力；凡是属于基础库能力缺口或 bug 的问题，直接在协作回复中按功能输出提示词，不在本项目业务代码中长期绕补丁，也不维护独立提示词文件。
 
 ## 当前阶段
 
@@ -26,6 +26,7 @@
 - 本地加速/减速按键；两键同时长按 5 秒执行完整出厂重置，清除 `fan` 业务配置以及 Esp32Base 的 `eb_wifi`、`eb_sys`、`eb_log`、`eb_web` 配置。
 - 红外遥控学习和控制。
 - 定时运行、断电恢复和累计运行时长统计。
+- 速度、目标速度和 RPM 的 RAM 实时曲线；页面刷新保留，设备重启清空，不写 Flash。
 - Web 控制页、配置页、REST API 和日志页。
 - WiFi 配网、mDNS、NTP、OTA、文件日志、看门狗、低功耗策略。
 - BOOT 键长按清除 WiFi 凭证并重启进入配网流程。
@@ -50,8 +51,8 @@
 
 | 功能 | ESP32 GPIO | 说明 |
 | --- | --- | --- |
-| 风扇 PWM | GPIO25 | LEDC PWM 输出 |
-| 风扇 TACH | GPIO26 | 中断输入，`INPUT_PULLUP` |
+| 风扇 PWM | GPIO18 | LEDC PWM 输出 |
+| 风扇 TACH | GPIO19 | 中断输入，`INPUT_PULLUP` |
 | 加速按键 | GPIO32 | `INPUT_PULLUP` |
 | 减速按键 | GPIO33 | `INPUT_PULLUP` |
 | 板载 LED | GPIO2 | 常见 DevKit 板载 LED，默认 active-low |
@@ -95,4 +96,3 @@ pio device monitor -e esp32dev
 - [DOC-03 软件架构设计](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-03_软件架构设计.md)
 - [DOC-04 代码设计说明](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/DOC-04_代码设计说明.md)
 - [Run Duration 64-bit 决策记录](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/RUN_DURATION_DECISION.md)
-- [Esp32Base 待完善提示词](/Users/tyg/dir/claude_dir/Esp32_Fan_4P/docs/ESP32BASE_PROMPTS.md)

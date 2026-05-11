@@ -7,7 +7,7 @@
 
 ## 2. 基础库边界
 - 凡是属于 Esp32Base 的能力缺口、API 不合理、默认行为问题或 bug，不要在本项目长期打补丁。
-- 遇到基础库问题时，只在 `docs/ESP32BASE_PROMPTS.md` 写清楚提示词，交由 Esp32Base 仓库完善。
+- 遇到基础库问题时，直接在回复中按功能给用户输出简洁提示词，交由 Esp32Base 仓库完善；本项目不维护独立提示词文件。
 - 本项目只能做必要的业务侧适配，不应复制、绕开或重写 Esp32Base 的基础能力。
 - 如果 Esp32Base 已完成对应能力，要删除本项目临时入口或绕补丁，改回正式 API。
 
@@ -67,7 +67,7 @@
 - 修改代码后至少运行 `pio run -e esp32dev` 和 `pio test -e native`。
 - 涉及实机行为时，构建通过后应 OTA 或串口烧录到 ESP32 并验证。
 - 修改 Web 页面后，要用浏览器或 curl 实际访问对应页面和 API。
-- 修改文档或提示词后，要保持 README、DOC-00、DOC-04 和 `docs/ESP32BASE_PROMPTS.md` 语义一致。
+- 修改文档或基础库反馈约定后，要保持 README、DOC-00 和 DOC-04 语义一致。
 - 需要上传 GitHub 时，提交后推送到 `https://github.com/tangyangguang/Esp32_Fan_4P.git`。
 
 ## 9. 回复用户的固定要求
@@ -77,7 +77,7 @@
 - 如果做了错误判断，要直接承认并撤回对应改动。
 
 ## 10. 当前剩余硬件工作
-- 用示波器验证 GPIO25 PWM 25 kHz 和占空比。
+- 用示波器验证 GPIO18 PWM 25 kHz 和占空比。
 - 接四线风扇验证 TACH RPM、堵转保护、软启动和软停止。
 - 人工长按 BOOT 验证清 WiFi 并重新配网。
 - 继续观察 mDNS 首次解析延迟，如多设备稳定复现再反馈 Esp32Base。

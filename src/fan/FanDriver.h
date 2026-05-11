@@ -21,6 +21,8 @@ public:
     bool setSpeed(uint8_t speed);
     uint8_t getSpeed() const;
     uint16_t getRpm() const;
+    uint32_t getTachPulseTotal() const;
+    uint8_t getTachPinLevel() const;
     FanState getState() const;
 
     void setSoftStartTime(uint16_t ms);
@@ -51,7 +53,7 @@ private:
 
     // Tachometer
     volatile uint32_t _tach_count;
-    volatile uint32_t _last_tach_ms;
+    volatile uint32_t _tach_pulse_total;
     uint16_t _rpm;
     uint32_t _last_rpm_update_ms;
 };

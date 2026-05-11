@@ -38,7 +38,7 @@ FanDriver::FanDriver(uint8_t pwm_pin, uint8_t tach_pin)
     , _block_start_tick(0)
     , _state(FAN_STATE_IDLE)
     , _tach_count(0)
-    , _last_tach_ms(0)
+    , _tach_pulse_total(0)
     , _rpm(0)
     , _last_rpm_update_ms(0) {
     s_instance = this;
@@ -54,15 +54,14 @@ bool FanDriver::begin() {
     ledcWrite(_pwm_pin, 0);
 #else
     ledcSetup(PWM_CHANNEL, PWM_FREQ_HZ, ESP32_FAN_PWM_RESOLUTION);
-    ledcWrite(PWM_CHANNEL, 0);
     ledcAttachPin(_pwm_pin, PWM_CHANNEL);
+    ledcWrite(PWM_CHANNEL, 0);
 #endif
 
     pinMode(_tach_pin, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(_tach_pin), tachISR, FALLING);
 
     _state = FAN_STATE_IDLE;
-    _last_tach_ms = millis();
     _last_rpm_update_ms = millis();
     _block_start_tick = millis();
     ESP32BASE_LOG_I("FanDrv", "Initialized: PWM=GPIO%d, TACH=GPIO%d, freq=%luHz",
@@ -86,7 +85,7 @@ void FanDriver::tick() {
 
     // Update RPM (calculate every 500ms)
     if (now - _last_rpm_update_ms >= 500) {
-        uint32_t elapsed = now - _last_tach_ms;
+        uint32_t elapsed = now - _last_rpm_update_ms;
         noInterrupts();
         uint32_t tach_count = _tach_count;
         _tach_count = 0;
@@ -98,7 +97,6 @@ void FanDriver::tick() {
         } else {
             _rpm = 0;
         }
-        _last_tach_ms = now;
         _last_rpm_update_ms = now;
     }
 
@@ -212,6 +210,17 @@ uint16_t FanDriver::getRpm() const {
     return _rpm;
 }
 
+uint32_t FanDriver::getTachPulseTotal() const {
+    noInterrupts();
+    uint32_t total = _tach_pulse_total;
+    interrupts();
+    return total;
+}
+
+uint8_t FanDriver::getTachPinLevel() const {
+    return digitalRead(_tach_pin);
+}
+
 FanState FanDriver::getState() const {
     return _state;
 }
@@ -250,5 +259,6 @@ void FanDriver::resetBlock() {
 void IRAM_ATTR FanDriver::tachISR() {
     if (s_instance != nullptr) {
         s_instance->_tach_count++;
+        s_instance->_tach_pulse_total++;
     }
 }

@@ -16,6 +16,9 @@ public:
         DEBUG = 4,
         VERBOSE = 5
     };
+
+    static void setSerialLevel(Level level);
+    static Level serialLevel();
 };
 
 #define ESP32BASE_LOG_D(tag, fmt, ...) ((void)0)
@@ -39,7 +42,11 @@ public:
     static bool setStrDeferred(const char* ns, const char* key, const char* value, uint32_t delayMs = 1000);
     static bool flushAll();
     static bool clearNamespace(const char* ns);
-    static bool clearLibraryNamespaces();
+    static bool clearWifiConfig();
+    static bool clearWebAuthConfig();
+    static bool clearSystemConfig();
+    static bool clearLogConfig();
+    static bool factoryReset();
     static void enableConfigAudit(bool enabled);
     static void enableConfigReadAudit(bool enabled);
 };
@@ -63,6 +70,12 @@ public:
     static bool clearCredentials();
     static State state();
     static const char* stateName();
+};
+
+class Esp32BaseSystem {
+public:
+    static void restart(const char* reason);
+    static const char* lastRestartReason();
 };
 
 class Esp32BaseNtp {
@@ -124,11 +137,15 @@ public:
     static bool getParam(const char* name, char* out, size_t len);
     static void sendHeader(const char* title = nullptr);
     static void sendFooter();
+    static bool beginResponse(int code, const char* contentType, const char* filename = nullptr);
+    static void endResponse();
     static void sendChunk(const char* text);
     static void writeHtmlEscaped(const char* text);
     static void sendText(int code, const char* text);
     static void sendHtml(int code, const char* html);
     static void sendJson(int code, const char* json);
+    static void beginJson(int code);
+    static void endJson();
 };
 
 #endif

@@ -13,14 +13,14 @@
 - 业务功能对齐成熟项目 `/Users/tyg/dir/claude_dir/ESP12F_Fan_4P`。
 - 基础能力使用相邻目录 `../Esp32Base`，默认启用 Full profile。
 - 项目文档先行，文档是后续实现和验收的基准。
-- 涉及 Esp32Base 能力缺口或 bug 时，输出完整提示词到 `docs/ESP32BASE_PROMPTS.md`，不在本项目长期打补丁。
+- 涉及 Esp32Base 能力缺口或 bug 时，直接在协作回复中按功能输出完整提示词，不在本项目长期打补丁，也不维护独立提示词文件。
 - 本项目按 Esp32Base 示例工程显式声明 Full profile 需要的 Arduino framework 库，避免 PlatformIO LDF 漏链。
 
 ## 2. 当前状态
 
 | 项目 | 状态 | 说明 |
 | --- | --- | --- |
-| 文档骨架 | 已完成 | README、DOC-00..04、Esp32Base 提示词 |
+| 文档骨架 | 已完成 | README、DOC-00..04 |
 | PlatformIO 环境 | 已引入 | `esp32dev`、`espressif32@6.9.0`、Arduino |
 | Esp32Base 引入 | 已引入 | `symlink://../Esp32Base` |
 | Full profile | 已配置 | `ESP32BASE_PROFILE_FULL` |
@@ -47,7 +47,7 @@
 
 - 文档之间术语、路径、API、模块边界一致。
 - `pio run -e esp32dev` 通过。
-- 基础库提示词文档存在且当前无未处理阻塞。
+- 基础库反馈采用对话中直接输出提示词，当前无未处理阻塞。
 
 ### 阶段 2：业务模块 ESP32 化
 

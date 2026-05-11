@@ -33,6 +33,10 @@ bool fanAppRegisterFanRoutes() {
         ESP32BASE_LOG_E("main", "custom Web route registration failed: /fan");
         ok = false;
     }
+    if (!Esp32BaseWeb::addPage("/history", "History", FanWeb::handleHistoryPage)) {
+        ESP32BASE_LOG_E("main", "custom Web route registration failed: /history");
+        ok = false;
+    }
     if (!Esp32BaseWeb::addPage("/config", "Settings", FanWeb::handleConfigPage)) {
         ESP32BASE_LOG_E("main", "custom Web route registration failed: /config");
         ok = false;
@@ -57,8 +61,20 @@ bool fanAppRegisterFanRoutes() {
         ESP32BASE_LOG_E("main", "custom Web route registration failed: /api/config");
         ok = false;
     }
+    if (!Esp32BaseWeb::addApi("/api/runtime/reset", FanWeb::handleApiRuntimeReset)) {
+        ESP32BASE_LOG_E("main", "custom Web route registration failed: /api/runtime/reset");
+        ok = false;
+    }
     if (!Esp32BaseWeb::addApi("/api/ir/learn", FanWeb::handleApiIrLearn)) {
         ESP32BASE_LOG_E("main", "custom Web route registration failed: /api/ir/learn");
+        ok = false;
+    }
+    if (!Esp32BaseWeb::addApi("/api/history", FanWeb::handleApiHistory)) {
+        ESP32BASE_LOG_E("main", "custom Web route registration failed: /api/history");
+        ok = false;
+    }
+    if (!Esp32BaseWeb::addApi("/api/history/config", FanWeb::handleApiHistoryConfig)) {
+        ESP32BASE_LOG_E("main", "custom Web route registration failed: /api/history/config");
         ok = false;
     }
     if (!ok) {
@@ -100,6 +116,6 @@ void fanAppHandleBootButton(uint8_t pin, BootClearState* state) {
             return;
         }
         delay(300);
-        ESP.restart();
+        Esp32BaseSystem::restart("boot clear wifi");
     }
 }

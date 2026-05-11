@@ -13,6 +13,8 @@ static uint8_t g_pinState[64] = {};
 static uint8_t g_pwmValue[64] = {};
 static void (*g_isr[64])() = {};
 static bool g_restartCalled = false;
+static char g_restartReason[40] = "";
+Esp32BaseLog::Level g_serialLevel = Esp32BaseLog::DEBUG;
 
 uint32_t millis() { return g_mockMillis; }
 void yield() {}
@@ -37,6 +39,9 @@ bool ESPClass::restartCalled() {
 }
 
 WiFiClass WiFi;
+
+void Esp32BaseLog::setSerialLevel(Level level) { g_serialLevel = level; }
+Esp32BaseLog::Level Esp32BaseLog::serialLevel() { return g_serialLevel; }
 
 namespace {
 struct IntEntry {
@@ -69,12 +74,14 @@ char g_authUser[32] = "admin";
 char g_authPass[32] = "admin";
 bool g_authEnabled = true;
 bool g_flushFail = false;
+bool g_factoryResetCalled = false;
 uint16_t g_flushCount = 0;
 uint16_t g_wifiClearCount = 0;
 bool g_configAuditEnabled = false;
 bool g_configReadAuditEnabled = false;
 uint8_t g_addPageCount = 0;
 uint8_t g_addApiCount = 0;
+char g_addPagePaths[4][32] = {};
 char g_failAddPagePath[32] = "";
 char g_failAddApiPath[32] = "";
 char g_failSetIntKey[16] = "";
@@ -229,7 +236,12 @@ bool Esp32BaseConfig::clearNamespace(const char* ns) {
     for (auto& item : g_strs) if (item.used && strcmp(item.ns, ns) == 0) item.used = false;
     return true;
 }
-bool Esp32BaseConfig::clearLibraryNamespaces() {
+bool Esp32BaseConfig::clearWifiConfig() { return true; }
+bool Esp32BaseConfig::clearWebAuthConfig() { return true; }
+bool Esp32BaseConfig::clearSystemConfig() { return true; }
+bool Esp32BaseConfig::clearLogConfig() { return true; }
+bool Esp32BaseConfig::factoryReset() {
+    g_factoryResetCalled = true;
     g_libraryNamespacesCleared = true;
     return true;
 }
@@ -252,6 +264,13 @@ bool Esp32BaseWiFi::clearCredentials() {
 }
 Esp32BaseWiFi::State Esp32BaseWiFi::state() { return CONNECTED; }
 const char* Esp32BaseWiFi::stateName() { return "CONNECTED"; }
+
+void Esp32BaseSystem::restart(const char* reason) {
+    strncpy(g_restartReason, reason ? reason : "", sizeof(g_restartReason) - 1);
+    g_restartReason[sizeof(g_restartReason) - 1] = '\0';
+    ESP.restart();
+}
+const char* Esp32BaseSystem::lastRestartReason() { return g_restartReason; }
 
 bool Esp32BaseNtp::isTimeSynced() { return true; }
 bool Esp32BaseNtp::formatTime(char* out, size_t len, const char*) {
@@ -279,6 +298,10 @@ bool Esp32BaseWeb::saveAuth(const char* user, const char* pass) {
 }
 bool Esp32BaseWeb::resetAuth() { return true; }
 bool Esp32BaseWeb::addPage(const char* path, const char*, Handler) {
+    if (g_addPageCount < 4) {
+        strncpy(g_addPagePaths[g_addPageCount], path ? path : "", sizeof(g_addPagePaths[0]) - 1);
+        g_addPagePaths[g_addPageCount][sizeof(g_addPagePaths[0]) - 1] = '\0';
+    }
     ++g_addPageCount;
     return strcmp(path ? path : "", g_failAddPagePath) != 0;
 }
@@ -314,6 +337,16 @@ bool Esp32BaseWeb::getParam(const char* name, char* out, size_t len) {
 }
 void Esp32BaseWeb::sendHeader(const char*) {}
 void Esp32BaseWeb::sendFooter() {}
+bool Esp32BaseWeb::beginResponse(int code, const char*, const char*) {
+    g_lastCode = code;
+    g_lastBody[0] = '\0';
+    g_chunkBody[0] = '\0';
+    return true;
+}
+void Esp32BaseWeb::endResponse() {
+    strncpy(g_lastBody, g_chunkBody, sizeof(g_lastBody) - 1);
+    g_lastBody[sizeof(g_lastBody) - 1] = '\0';
+}
 void Esp32BaseWeb::sendChunk(const char* text) {
     if (!text) return;
     const size_t used = strlen(g_chunkBody);
@@ -329,10 +362,13 @@ void Esp32BaseWeb::sendJson(int code, const char* json) {
     strncpy(g_lastBody, json ? json : "", sizeof(g_lastBody) - 1);
     g_lastBody[sizeof(g_lastBody) - 1] = '\0';
 }
+void Esp32BaseWeb::beginJson(int code) { beginResponse(code, "application/json"); sendChunk("{"); }
+void Esp32BaseWeb::endJson() { sendChunk("}"); endResponse(); }
 
 #include "fan/ButtonDriver.h"
 #include "fan/FanController.h"
 #include "fan/FanDriver.h"
+#include "fan/FanHistory.h"
 #include "fan/IRReceiverDriver.h"
 #include "fan/LedIndicator.h"
 #include "web/FanWeb.h"
@@ -348,10 +384,13 @@ void setUp() {
     memset(g_bools, 0, sizeof(g_bools));
     memset(g_strs, 0, sizeof(g_strs));
     g_restartCalled = false;
+    g_restartReason[0] = '\0';
     g_configReady = false;
     g_wifiConnected = true;
     g_wifiPowerSave = false;
     g_libraryNamespacesCleared = false;
+    g_factoryResetCalled = false;
+    g_serialLevel = Esp32BaseLog::DEBUG;
     strcpy(g_authUser, "admin");
     strcpy(g_authPass, "admin");
     g_authEnabled = true;
@@ -361,6 +400,7 @@ void setUp() {
     g_configAuditEnabled = false;
     g_configReadAuditEnabled = false;
     g_addPageCount = 0;
+    memset(g_addPagePaths, 0, sizeof(g_addPagePaths));
     g_addApiCount = 0;
     g_failAddPagePath[0] = '\0';
     g_failAddApiPath[0] = '\0';
@@ -462,7 +502,9 @@ void test_controller_factory_reset_clears_app_and_library_namespaces() {
 
     TEST_ASSERT_TRUE(controller.resetFactory());
     TEST_ASSERT_TRUE(ESP.restartCalled());
+    TEST_ASSERT_EQUAL_STRING("factory reset", Esp32BaseSystem::lastRestartReason());
     TEST_ASSERT_EQUAL(10, Esp32BaseConfig::getInt("fan", "min_spd", 10));
+    TEST_ASSERT_TRUE(g_factoryResetCalled);
     TEST_ASSERT_TRUE(g_libraryNamespacesCleared);
 }
 
@@ -471,8 +513,11 @@ void test_app_runtime_registers_routes_and_enables_audit() {
     TEST_ASSERT_EQUAL_STRING("admin", Esp32BaseWeb::authUser());
 
     TEST_ASSERT_TRUE(fanAppRegisterFanRoutes());
-    TEST_ASSERT_EQUAL(2, g_addPageCount);
-    TEST_ASSERT_EQUAL(6, g_addApiCount);
+    TEST_ASSERT_EQUAL(3, g_addPageCount);
+    TEST_ASSERT_EQUAL_STRING("/fan", g_addPagePaths[0]);
+    TEST_ASSERT_EQUAL_STRING("/history", g_addPagePaths[1]);
+    TEST_ASSERT_EQUAL_STRING("/config", g_addPagePaths[2]);
+    TEST_ASSERT_EQUAL(9, g_addApiCount);
 
     fanAppEnableConfigAuditBeforeBegin();
     TEST_ASSERT_TRUE(g_configAuditEnabled);
@@ -483,8 +528,75 @@ void test_app_runtime_reports_route_registration_failure() {
     strcpy(g_failAddApiPath, "/api/stop");
 
     TEST_ASSERT_FALSE(fanAppRegisterFanRoutes());
-    TEST_ASSERT_EQUAL(2, g_addPageCount);
-    TEST_ASSERT_EQUAL(6, g_addApiCount);
+    TEST_ASSERT_EQUAL(3, g_addPageCount);
+    TEST_ASSERT_EQUAL(9, g_addApiCount);
+}
+
+void test_fan_history_defaults_sampling_and_wrap() {
+    FanHistory history;
+    history.begin();
+    FanHistoryConfig cfg = history.config();
+    TEST_ASSERT_EQUAL(500, cfg.short_points);
+    TEST_ASSERT_EQUAL(500, cfg.short_sample_ms);
+    TEST_ASSERT_EQUAL(250, cfg.short_window_seconds);
+    TEST_ASSERT_EQUAL(500, cfg.long_points);
+    TEST_ASSERT_EQUAL(10, cfg.long_sample_s);
+    TEST_ASSERT_EQUAL(5000, cfg.long_window_seconds);
+
+    history.tick(0, 10, 25, 1000);
+    history.tick(500, 20, 25, 1100);
+    history.tick(600, 30, 40, 1200);
+    TEST_ASSERT_EQUAL(2, history.count(FAN_HISTORY_SHORT));
+    TEST_ASSERT_EQUAL(1, history.count(FAN_HISTORY_LONG));
+
+    FanHistoryPoint point;
+    TEST_ASSERT_TRUE(history.pointAt(FAN_HISTORY_SHORT, 0, &point));
+    TEST_ASSERT_EQUAL(0, point.t_ms);
+    TEST_ASSERT_EQUAL(1, history.sequenceAt(FAN_HISTORY_SHORT, 0));
+    TEST_ASSERT_EQUAL(10, point.speed);
+    TEST_ASSERT_EQUAL(25, point.target_speed);
+    TEST_ASSERT_EQUAL(1000, point.rpm);
+    TEST_ASSERT_TRUE(history.pointAt(FAN_HISTORY_SHORT, 1, &point));
+    TEST_ASSERT_EQUAL(500, point.t_ms);
+    TEST_ASSERT_EQUAL(2, history.sequenceAt(FAN_HISTORY_SHORT, 1));
+    TEST_ASSERT_EQUAL(20, point.speed);
+    TEST_ASSERT_EQUAL(25, point.target_speed);
+    TEST_ASSERT_EQUAL(1100, point.rpm);
+
+    char error[80];
+    TEST_ASSERT_TRUE(history.configure(100, 1000, 100, 60, error, sizeof(error)));
+    for (uint16_t i = 0; i < 105; ++i) {
+        history.tick(static_cast<uint32_t>(i) * 1000UL, i, i + 1, i + 100);
+    }
+    TEST_ASSERT_EQUAL(100, history.count(FAN_HISTORY_SHORT));
+    TEST_ASSERT_TRUE(history.pointAt(FAN_HISTORY_SHORT, 0, &point));
+    TEST_ASSERT_EQUAL(5000, point.t_ms);
+    TEST_ASSERT_EQUAL(6, history.sequenceAt(FAN_HISTORY_SHORT, 0));
+    TEST_ASSERT_TRUE(history.pointAt(FAN_HISTORY_SHORT, 99, &point));
+    TEST_ASSERT_EQUAL(104000, point.t_ms);
+    TEST_ASSERT_EQUAL(105, history.sequenceAt(FAN_HISTORY_SHORT, 99));
+
+    TEST_ASSERT_TRUE(history.configure(100, 100, 100, 10, error, sizeof(error)));
+    history.tick(4294967240UL, 25, 25, 1000);
+    history.tick(60, 30, 30, 1200);
+    TEST_ASSERT_EQUAL(2, history.count(FAN_HISTORY_SHORT));
+    TEST_ASSERT_TRUE(history.pointAt(FAN_HISTORY_SHORT, 1, &point));
+    TEST_ASSERT_EQUAL(60, point.t_ms);
+    TEST_ASSERT_EQUAL(2, history.sequenceAt(FAN_HISTORY_SHORT, 1));
+}
+
+void test_fan_history_rejects_oversized_config_without_change() {
+    FanHistory history;
+    history.begin();
+    char error[80];
+    TEST_ASSERT_FALSE(history.configure(1201, 100, 600, 60, error, sizeof(error)));
+    TEST_ASSERT_NOT_NULL(strstr(error, "short_points must be 100..1200"));
+    TEST_ASSERT_FALSE(history.configure(600, 100, 99, 60, error, sizeof(error)));
+    TEST_ASSERT_NOT_NULL(strstr(error, "long_points must be 100..1200"));
+    FanHistoryConfig cfg = history.config();
+    TEST_ASSERT_EQUAL(500, cfg.short_points);
+    TEST_ASSERT_EQUAL(500, cfg.short_sample_ms);
+    TEST_ASSERT_EQUAL(250, cfg.short_window_seconds);
 }
 
 void test_app_runtime_boot_button_clear_wifi_timing() {
@@ -515,6 +627,7 @@ void test_app_runtime_boot_button_clear_wifi_timing() {
     TEST_ASSERT_EQUAL(1, g_wifiClearCount);
     TEST_ASSERT_GREATER_THAN_UINT16(0, g_flushCount);
     TEST_ASSERT_TRUE(ESP.restartCalled());
+    TEST_ASSERT_EQUAL_STRING("boot clear wifi", Esp32BaseSystem::lastRestartReason());
 
     g_mockMillis = 9000;
     fanAppHandleBootButton(bootPin, &state);
@@ -747,6 +860,53 @@ void test_controller_runtime_save_failure_retries_next_tick() {
     TEST_ASSERT_EQUAL(62, Esp32BaseConfig::getInt("fan", "run_s", 0));
 }
 
+void test_controller_reset_total_run_duration_preserves_boot_run() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    makeController(fan, buttons, led, ir, controller);
+    controller.setSoftStartTime(0);
+    controller.setBlockDetectTime(60000);
+
+    TEST_ASSERT_TRUE(controller.setSpeed(40));
+    g_mockMillis = 3000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(3, controller.getTotalRunDuration());
+    TEST_ASSERT_EQUAL(3, controller.getBootRunDuration());
+
+    TEST_ASSERT_TRUE(controller.resetTotalRunDuration());
+    TEST_ASSERT_EQUAL(0, controller.getTotalRunDuration());
+    TEST_ASSERT_EQUAL(3, controller.getBootRunDuration());
+    TEST_ASSERT_EQUAL(0, Esp32BaseConfig::getInt("fan", "run_s", -1));
+}
+
+void test_controller_reset_total_run_duration_failure_rolls_back() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    makeController(fan, buttons, led, ir, controller);
+    controller.setSoftStartTime(0);
+    controller.setBlockDetectTime(60000);
+
+    TEST_ASSERT_TRUE(controller.setSpeed(40));
+    g_mockMillis = 2000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(2, controller.getTotalRunDuration());
+    TEST_ASSERT_EQUAL(2, controller.getBootRunDuration());
+
+    g_flushFail = true;
+    TEST_ASSERT_FALSE(controller.resetTotalRunDuration());
+    g_flushFail = false;
+
+    TEST_ASSERT_EQUAL(2, controller.getTotalRunDuration());
+    TEST_ASSERT_EQUAL(2, controller.getBootRunDuration());
+    TEST_ASSERT_EQUAL(2, Esp32BaseConfig::getInt("fan", "run_s", -1));
+}
+
 void test_controller_ignores_negative_persisted_values() {
     Esp32BaseConfig::setInt("fan", "min_spd", -1);
     Esp32BaseConfig::setInt("fan", "soft_on", 0);
@@ -907,6 +1067,43 @@ void test_web_runtime_save_failure_returns_error() {
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
 }
 
+void test_web_runtime_reset_api_success_and_failure() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    FanWeb web(controller, ir);
+    (void)web;
+    makeController(fan, buttons, led, ir, controller);
+    controller.setSoftStartTime(0);
+    controller.setBlockDetectTime(60000);
+
+    TEST_ASSERT_TRUE(controller.setSpeed(40));
+    g_mockMillis = 2000;
+    controller.tick();
+
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    FanWeb::handleApiRuntimeReset();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_EQUAL(0, controller.getTotalRunDuration());
+    TEST_ASSERT_EQUAL(2, controller.getBootRunDuration());
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"run_duration\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"boot_run_duration\":2"));
+
+    g_mockMillis = 4000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(2, controller.getTotalRunDuration());
+    webReset();
+    g_flushFail = true;
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    FanWeb::handleApiRuntimeReset();
+    g_flushFail = false;
+    TEST_ASSERT_EQUAL(500, g_lastCode);
+    TEST_ASSERT_EQUAL(2, controller.getTotalRunDuration());
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"total run reset failed\""));
+}
+
 void test_web_ir_clear_failure_returns_error() {
     Esp32BaseConfig::setStr("fan", "ir_2", "1:0000000000001234");
     FanDriver fan(5, 12);
@@ -941,11 +1138,39 @@ void test_web_pages_emit_html_chunks() {
     FanWeb::handleStatusPage();
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "id=outTop"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "id=sv"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "id=stDiag"));
+    TEST_ASSERT_NULL(strstr(g_chunkBody, "id=tach"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "id=histChart"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/history"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, ">Recent</button>"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, ">Trend</button>"));
+    TEST_ASSERT_NULL(strstr(g_chunkBody, "class='chart widechart'"));
 
     webReset();
     FanWeb::handleConfigPage();
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "name=min_speed"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "fetch('/api/config'"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "name=short_points"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "name=short_sample_ms"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "name=long_points"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Recent points"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Trend points"));
+    TEST_ASSERT_NULL(strstr(g_chunkBody, "name=short_minutes"));
+    TEST_ASSERT_NULL(strstr(g_chunkBody, "name=long_hours"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/history/config"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Clear total run"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/runtime/reset"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "confirm('Clear total run?"));
+
+    webReset();
+    FanWeb::handleHistoryPage();
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "widechart"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "calc(100vh - 320px)"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "since_seq"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, ">Recent</button>"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, ">Trend</button>"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "histSwitch(\"short\")"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "histSwitch(\"long\")"));
 }
 
 void test_web_api_status() {
@@ -961,8 +1186,81 @@ void test_web_api_status() {
     FanWeb::handleApiStatus();
     TEST_ASSERT_EQUAL(200, g_lastCode);
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":true"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"state_detail\":"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"tach_pulses\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"tach_level\":1"));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ip\":\"192.168.4.10\""));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"clock\":\"2026-05-07 12:00:00\""));
+}
+
+void test_web_api_history_and_config() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    FanHistory history;
+    history.begin();
+    FanWeb web(controller, ir, &history);
+    (void)web;
+    makeController(fan, buttons, led, ir, controller);
+
+    history.tick(0, 10, 25, 1000);
+    history.tick(600, 20, 50, 1200);
+    webSetParam("range", "short");
+    FanWeb::handleApiHistory();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"range\":\"short\""));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"short_points\":500"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"short_window_seconds\":250"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"seq\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"seq\":2"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"target_speed\":50"));
+
+    webReset();
+    webSetParam("range", "short");
+    webSetParam("since_seq", "1");
+    FanWeb::handleApiHistory();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_NULL(strstr(g_lastBody, "\"t_ms\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"t_ms\":600"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"seq\":2"));
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("short_points", "99");
+    webSetParam("short_sample_ms", "100");
+    webSetParam("long_points", "600");
+    webSetParam("long_sample_s", "60");
+    FanWeb::handleApiHistoryConfig();
+    TEST_ASSERT_EQUAL(400, g_lastCode);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
+    TEST_ASSERT_EQUAL(2, history.count(FAN_HISTORY_SHORT));
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("short_points", "100");
+    webSetParam("short_sample_ms", "100");
+    webSetParam("long_points", "1200");
+    webSetParam("long_sample_s", "90");
+    FanWeb::handleApiHistoryConfig();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"short_points\":100"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"short_window_seconds\":10"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"long_points\":1200"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"long_window_seconds\":108000"));
+    TEST_ASSERT_EQUAL(0, history.count(FAN_HISTORY_SHORT));
+
+    history.tick(4294967240UL, 10, 10, 800);
+    history.tick(60, 20, 20, 900);
+    webReset();
+    webSetParam("range", "short");
+    webSetParam("since_seq", "1");
+    FanWeb::handleApiHistory();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_NULL(strstr(g_lastBody, "\"t_ms\":4294967240"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"t_ms\":60"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"seq\":2"));
 }
 
 int main(int, char**) {
@@ -970,6 +1268,8 @@ int main(int, char**) {
     RUN_TEST(test_fan_driver_begin_and_soft_start);
     RUN_TEST(test_fan_driver_rpm_and_block_detection);
     RUN_TEST(test_button_driver_short_press_and_both_long);
+    RUN_TEST(test_fan_history_defaults_sampling_and_wrap);
+    RUN_TEST(test_fan_history_rejects_oversized_config_without_change);
     RUN_TEST(test_app_runtime_registers_routes_and_enables_audit);
     RUN_TEST(test_app_runtime_reports_route_registration_failure);
     RUN_TEST(test_app_runtime_boot_button_clear_wifi_timing);
@@ -982,14 +1282,18 @@ int main(int, char**) {
     RUN_TEST(test_controller_auto_restore_enable_saves_current_state);
     RUN_TEST(test_controller_min_speed_change_reapplies_low_target);
     RUN_TEST(test_controller_runtime_save_failure_retries_next_tick);
+    RUN_TEST(test_controller_reset_total_run_duration_preserves_boot_run);
+    RUN_TEST(test_controller_reset_total_run_duration_failure_rolls_back);
     RUN_TEST(test_controller_ignores_negative_persisted_values);
     RUN_TEST(test_controller_error_recovery_window_not_reset_by_repeated_speed);
     RUN_TEST(test_controller_factory_reset_clears_app_and_library_namespaces);
     RUN_TEST(test_web_api_speed_timer_config_and_ir);
     RUN_TEST(test_web_config_write_failure_returns_error_without_applying);
     RUN_TEST(test_web_runtime_save_failure_returns_error);
+    RUN_TEST(test_web_runtime_reset_api_success_and_failure);
     RUN_TEST(test_web_ir_clear_failure_returns_error);
     RUN_TEST(test_web_pages_emit_html_chunks);
     RUN_TEST(test_web_api_status);
+    RUN_TEST(test_web_api_history_and_config);
     return UNITY_END();
 }

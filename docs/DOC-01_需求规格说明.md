@@ -25,8 +25,8 @@
 | F-05 | 红外学习 | Web 触发学习，支持常见协议，记录加速、减速、停止、30min、1h、2h、4h、8h | 本项目 IRReceiverDriver/FanWeb |
 | F-06 | 定时运行 | 支持 30min/1h/2h/4h/8h 预设和最大 99 小时自定义，倒计时结束停止 | 本项目 FanController/FanWeb |
 | F-07 | Web 控制 | `/fan` 查看状态并控制速度/定时，Basic Auth 鉴权，页面移动端可用 | Esp32Base Web + 本项目 FanWeb |
-| F-08 | REST API | 提供 `/api/status`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/config`、`/api/ir/learn` | Esp32Base 路由 + 本项目 FanWeb |
-| F-09 | 持久日志 | 文件日志断电不丢失，Web 可查看，至少保留约 64 KB | Esp32Base FileLog/Web Logs |
+| F-08 | REST API | 提供 `/api/status`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/config`、`/api/runtime/reset`、`/api/ir/learn`、`/api/history`、`/api/history/config` | Esp32Base 路由 + 本项目 FanWeb |
+| F-09 | 持久日志 | 文件日志断电不丢失，Web 可查看，默认 `/logs/eb_app.log`，4 × 32KB，WARN 级别 | Esp32Base FileLog/Web Logs |
 | F-10 | OTA | Web OTA 可用，复用 Web Basic Auth | Esp32Base OTA |
 | F-11 | WiFi 配网 | 无凭证时进入 AP/captive portal 配网；清凭证后重启进入配网 | Esp32Base WiFi/DNS/Web + main |
 | F-12 | 断电恢复 | 可配置恢复上次速度和剩余定时，也可配置上电保持停止 | 本项目 FanController + Esp32BaseConfig |
@@ -39,12 +39,13 @@
 | F-19 | LED 指示 | 档位亮度、WiFi 慢闪、故障快闪、操作闪烁 | 本项目 LedIndicator |
 | F-20 | 看门狗 | 主循环正常喂狗，长时间卡死可恢复 | Esp32Base Watchdog |
 | F-21 | NTP 时间 | 网络可用后日志和状态页可显示真实时间 | Esp32Base NTP |
+| F-22 | 实时曲线 | 设备 RAM 记录速度、目标速度和 RPM；短时默认 500 点/500ms，长时默认 500 点/10s；提供 `/fan` 紧凑图表和 `/history` 宽屏图表；每组 100..1200 点，重启清空，不写 Flash | 本项目 FanHistory/FanWeb |
 
 ## 3. Should 需求
 
 | 编号 | 功能 | 验收标准 |
 | --- | --- | --- |
-| S-01 | 累计运行时长 | 总运行秒数持久化，Web 页面可查看 |
+| S-01 | 累计运行时长 | 总运行秒数持久化，Web 页面可查看；配置页可清零 Total run，Boot run 不受影响 |
 | S-02 | 健康诊断 | Web/API 可观察 heap、flash、FS、重启原因等 Esp32Base 健康信息 |
 | S-03 | 动态 hostname | 后续支持 `fan-xxxx.local`，`xxxx` 来自 MAC 后四位 |
 

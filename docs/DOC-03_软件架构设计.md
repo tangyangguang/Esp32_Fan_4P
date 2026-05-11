@@ -48,7 +48,7 @@ Infrastructure
 - `web/` 持有 `FanController` 和 `IRReceiverDriver` 引用，只负责页面和 API。
 - `Esp32Base` 不依赖本项目。
 - ISR 中不调用 Esp32Base 日志、配置、Web、事件总线等同步 API。
-- 基础库能力缺口记录到 `docs/ESP32BASE_PROMPTS.md`。
+- 基础库能力缺口直接在协作回复中按功能输出提示词，不在本项目维护提示词文件。
 
 ## 3. 模块划分
 
@@ -66,14 +66,14 @@ Infrastructure
 
 | Esp32Base 模块 | 本项目用途 |
 | --- | --- |
-| `Esp32BaseLog` | 串口日志、统一日志宏 |
+| `Esp32BaseLog` | 统一日志宏；实机运行关闭 Serial 输出，保留文件日志 |
 | `Esp32BaseConfig` | NVS 配置、运行状态持久化 |
 | `Esp32BaseSystem` | 系统资源和芯片信息 |
 | `Esp32BaseBus` | 后续订阅 WiFi/Web 等基础事件 |
 | `Esp32BaseWatchdog` | 主循环看门狗 |
 | `Esp32BaseWiFi::setPowerSave` | 停止后进入 WiFi power save，替代 ESP8266 modem sleep |
 | `Esp32BaseFs` | LittleFS 挂载 |
-| `Esp32BaseFileLog` | `/logs/app.log` 滚动日志 |
+| `Esp32BaseFileLog` | `/logs/eb_app.log` 滚动日志；量产默认 WARN 级别 |
 | `Esp32BaseHealth` | 健康诊断 |
 | `Esp32BaseWiFi` | STA 连接、AP 配网、清凭证、power save |
 | `Esp32BaseDns` | captive portal DNS |
@@ -106,7 +106,7 @@ Infrastructure
 
 ## 6. 初始化顺序
 
-1. 设置固件信息和 hostname。
+1. 设置固件信息；默认 hostname 由 `ESP32BASE_DEFAULT_HOSTNAME` 编译宏提供。
 2. 调用 `Esp32BaseWeb::setDefaultAuth("admin", "admin")`，并设置设备名、业务首页和系统导航模式。
 3. 注册 `/fan`、`/config` 和 `/api/*` 路由；`/fan`、`/config` 通过 `addPage(path, title, handler)` 进入基础库导航。
 4. 在 `Esp32Base::begin()` 前启用 Config write/read audit，覆盖基础库启动期配置读取。
