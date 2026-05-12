@@ -11,6 +11,36 @@
 namespace {
 const uint16_t kCaptureBufferSize = 512;
 const uint16_t kCaptureTimeout = 50;
+const uint8_t kProtocolNec = 3;  // IRremoteESP8266 decode_type_t::NEC.
+
+uint8_t reverse8(uint8_t value) {
+    value = (value & 0xF0) >> 4 | (value & 0x0F) << 4;
+    value = (value & 0xCC) >> 2 | (value & 0x33) << 2;
+    return (value & 0xAA) >> 1 | (value & 0x55) << 1;
+}
+
+uint16_t reverse16(uint16_t value) {
+    return (static_cast<uint16_t>(reverse8(value & 0xFF)) << 8) | reverse8(value >> 8);
+}
+
+bool decodeNec(uint64_t code, uint16_t* address, bool* extended, uint8_t* command) {
+    if (!address || !extended || !command) return false;
+    const uint32_t raw = static_cast<uint32_t>(code);
+    const uint8_t addr = raw >> 24;
+    const uint8_t addr_inv = raw >> 16;
+    const uint8_t cmd = raw >> 8;
+    const uint8_t cmd_inv = raw;
+    if ((cmd ^ cmd_inv) != 0xFF) return false;
+    *command = reverse8(cmd);
+    if ((addr ^ addr_inv) == 0xFF) {
+        *address = reverse8(addr);
+        *extended = false;
+    } else {
+        *address = reverse16(raw >> 16);
+        *extended = true;
+    }
+    return true;
+}
 }
 
 IRReceiverDriver::IRReceiverDriver(uint8_t recv_pin)
@@ -94,8 +124,9 @@ IREvent IRReceiverDriver::getEvent() {
 
     _irrecv.resume();
 
-    ESP32BASE_LOG_D("IR", "Received: protocol=%d, code=0x%08llX",
-             _last_protocol, static_cast<unsigned long long>(_last_code));
+    char decoded[80];
+    formatDecodedCode(_last_protocol, _last_code, decoded, sizeof(decoded));
+    ESP32BASE_LOG_D("IR", "Received: %s", decoded);
 
     if (_ignore_until_tick != 0) {
         if ((int32_t)(millis() - _ignore_until_tick) < 0) {
@@ -155,8 +186,9 @@ void IRReceiverDriver::setKeyCode(uint8_t key_index, uint8_t protocol, uint64_t 
     _codes[key_index] = code;
     // Only log if actually learned (non-zero code)
     if (protocol != 0 || code != 0) {
-        ESP32BASE_LOG_I("IR", "Key %d learned: protocol=%d, code=0x%08llX",
-                 key_index, protocol, static_cast<unsigned long long>(code));
+        char decoded[80];
+        formatDecodedCode(protocol, code, decoded, sizeof(decoded));
+        ESP32BASE_LOG_I("IR", "Key %d learned: %s", key_index, decoded);
     }
 }
 
@@ -194,6 +226,32 @@ uint8_t IRReceiverDriver::getDuplicateKeyIndex() const {
     return _duplicate_key_index;
 }
 
+void IRReceiverDriver::formatDecodedCode(uint8_t protocol, uint64_t code, char* out, size_t out_size) {
+    if (!out || out_size == 0) return;
+    if (protocol == 0 && code == 0) {
+        snprintf(out, out_size, "None");
+        return;
+    }
+    if (protocol == kProtocolNec) {
+        uint16_t address = 0;
+        uint8_t command = 0;
+        bool extended = false;
+        if (decodeNec(code, &address, &extended, &command)) {
+            if (extended) {
+                snprintf(out, out_size, "NEC ext addr 0x%04X cmd 0x%02X - raw 0x%08llX",
+                         address, command, static_cast<unsigned long long>(code));
+            } else {
+                snprintf(out, out_size, "NEC addr 0x%02X cmd 0x%02X - raw 0x%08llX",
+                         static_cast<unsigned>(address), command,
+                         static_cast<unsigned long long>(code));
+            }
+            return;
+        }
+    }
+    snprintf(out, out_size, "Protocol %u - 0x%016llX",
+             protocol, static_cast<unsigned long long>(code));
+}
+
 bool IRReceiverDriver::findDuplicateKey(uint8_t protocol, uint64_t code, uint8_t except_key, uint8_t* duplicate_key) const {
     if (protocol == 0 && code == 0) return false;
     for (uint8_t i = 0; i < IR_KEY_COUNT; i++) {
@@ -214,9 +272,10 @@ bool IRReceiverDriver::completeLearning(uint8_t protocol, uint64_t code) {
         _duplicate_key_index = duplicate_key;
         _learn_reject_sequence++;
         _ignore_until_tick = millis() + DUPLICATE_LEARN_IGNORE_MS;
-        ESP32BASE_LOG_W("IR", "Rejected duplicate learned code key=%u duplicate_of=%u protocol=%u code=0x%08llX",
-                          _learning_key_index, duplicate_key, protocol,
-                          static_cast<unsigned long long>(code));
+        char decoded[80];
+        formatDecodedCode(protocol, code, decoded, sizeof(decoded));
+        ESP32BASE_LOG_W("IR", "Rejected duplicate learned code key=%u duplicate_of=%u %s",
+                        _learning_key_index, duplicate_key, decoded);
         return false;
     }
 

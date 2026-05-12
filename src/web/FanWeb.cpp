@@ -391,9 +391,9 @@ static const char CONFIG_IR_END[] PROGMEM =
     "function applyHistCfg(d){var f=document.querySelector('form .histcfg').closest('form');if(!d||!f)return;f.short_points.value=d.short_points;f.short_sample_ms.value=d.short_sample_ms;f.long_points.value=d.long_points;f.long_sample_s.value=d.long_sample_s;setHistCfgMsg('Recent '+d.short_points+' points - '+hw(d.short_window_seconds)+' · Trend '+d.long_points+' points - '+hw(d.long_window_seconds),'muted')}"
     "function loadHistCfg(){fetch('/api/history/config').then(r=>r.json()).then(j=>{if(j.ok)applyHistCfg(j.data)}).catch(()=>setHistCfgMsg('Load failed','errtxt'))}"
     "function saveHistCfg(f){var b=document.getElementById('histSaveBtn');b.disabled=true;b.textContent='Saving';setHistCfgMsg('Saving...','muted');fetch('/api/history/config',{method:'POST',body:new URLSearchParams(new FormData(f))}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Save';if(x.ok&&x.j.ok){applyHistCfg(x.j.data);setHistCfgMsg('Saved in RAM - history reset','oktxt')}else setHistCfgMsg(x.j&&x.j.error?x.j.error:'Save failed','errtxt')}).catch(()=>{b.disabled=false;b.textContent='Save';setHistCfgMsg('Save failed: network error','errtxt')})}"
-    "function finishIr(i,n,seq,tok,retry){fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(d&&d.ir_learn_seq!=seq){var v='Protocol '+d.ir_last_protocol+' - '+d.ir_last_code;setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt')}else if(d&&d.ir_learning&&(retry||0)<2)setTimeout(()=>finishIr(i,n,seq,tok,(retry||0)+1),500);else setIr('Learn timeout - no valid signal','errtxt')}).catch(()=>{if(tok==irToken)setIr('Learn timeout - no valid signal','errtxt')})}"
+    "function finishIr(i,n,seq,tok,retry){fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(d&&d.ir_learn_seq!=seq){var v=d.ir_last_text||('Protocol '+d.ir_last_protocol+' - '+d.ir_last_code);setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt')}else if(d&&d.ir_learning&&(retry||0)<2)setTimeout(()=>finishIr(i,n,seq,tok,(retry||0)+1),500);else setIr('Learn timeout - no valid signal','errtxt')}).catch(()=>{if(tok==irToken)setIr('Learn timeout - no valid signal','errtxt')})}"
     "function showLearn(n){var l=irLeft();if(l<=0)return false;if(irDup>=0)setIr('Already assigned to '+irName(irDup)+'. Clear that key first - '+l+'s','errtxt');else setIr('Learning '+n+' - '+l+'s','muted');return true}"
-    "function watchIr(i,n,seq,tok){if(tok!=irToken)return;if(!showLearn(n)){finishIr(i,n,seq,tok);return}fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(!d)return;if(d.ir_learn_seq!=seq){var v='Protocol '+d.ir_last_protocol+' - '+d.ir_last_code;setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt');return}if(!d.ir_learning){setIr('Learn timeout - no valid signal','errtxt');return}var nd=d.ir_duplicate_key<irNames.length?d.ir_duplicate_key:-1;if(nd>=0&&(nd!=irDup||d.ir_reject_seq!=irReject))hitIr(nd);irDup=nd;irReject=d.ir_reject_seq;setTimeout(()=>watchIr(i,n,seq,tok),500)}).catch(()=>{if(tok!=irToken)return;if(showLearn(n))setTimeout(()=>watchIr(i,n,seq,tok),500);else finishIr(i,n,seq,tok)})}"
+    "function watchIr(i,n,seq,tok){if(tok!=irToken)return;if(!showLearn(n)){finishIr(i,n,seq,tok);return}fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(!d)return;if(d.ir_learn_seq!=seq){var v=d.ir_last_text||('Protocol '+d.ir_last_protocol+' - '+d.ir_last_code);setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt');return}if(!d.ir_learning){setIr('Learn timeout - no valid signal','errtxt');return}var nd=d.ir_duplicate_key<irNames.length?d.ir_duplicate_key:-1;if(nd>=0&&(nd!=irDup||d.ir_reject_seq!=irReject))hitIr(nd);irDup=nd;irReject=d.ir_reject_seq;setTimeout(()=>watchIr(i,n,seq,tok),500)}).catch(()=>{if(tok!=irToken)return;if(showLearn(n))setTimeout(()=>watchIr(i,n,seq,tok),500);else finishIr(i,n,seq,tok)})}"
     "function learn(i,n){irToken++;irDup=-1;irReject=0;var tok=irToken;setIr('Starting '+n+'...','muted');fetch('/api/ir/learn',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key_index='+i}).then(r=>r.json()).then(d=>{if(d.ok){irReject=d.rej_seq||0;irDeadline=Date.now()+d.timeout*1000;watchIr(i,n,d.seq,tok)}else setIr('Learn failed','errtxt')}).catch(()=>setIr('Learn failed: network error','errtxt'))}"
     "function clearIr(i,n){if(!confirm('Clear IR code for '+n+'?'))return;setIr('Clearing '+n+'...','muted');fetch('/api/ir/learn',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key_index='+i+'&clear=1'}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{if(x.ok&&x.j.ok){setIrRow(i,'Not learned','');setIr(x.j.changed?('Cleared '+n):('No code for '+n),x.j.changed?'oktxt':'muted');setTimeout(()=>location.reload(),600)}else setIr('Clear failed','errtxt')}).catch(()=>setIr('Clear failed: network error','errtxt'))}"
     "loadHistCfg();"
@@ -471,15 +471,19 @@ void FanWeb::handleConfigPage() {
                 }
             }
         }
-        char value[56];
+        char decoded[80];
+        char value[100];
         if (protocol != 0 || code != 0) {
-            snprintf(value, sizeof(value), "%s%u - 0x%016llX",
-                     duplicate ? "Duplicate: protocol " : "Protocol ",
-                     protocol, (unsigned long long)code);
+            IRReceiverDriver::formatDecodedCode(protocol, code, decoded, sizeof(decoded));
+            if (duplicate) {
+                snprintf(value, sizeof(value), "Duplicate: %s", decoded);
+            } else {
+                snprintf(value, sizeof(value), "%s", decoded);
+            }
         } else {
             strcpy(value, "Not learned");
         }
-        char row[320];
+        char row[384];
         snprintf(row, sizeof(row),
             "<div class=irrow id=irr%u><div><b>%s</b><span id=irv%u%s>%s</span></div>"
             "<button onclick='learn(%u,\"%s\")'>Learn</button>"
@@ -534,6 +538,8 @@ void FanWeb::handleApiStatus() {
     }
 
     uint8_t ir_key = _ir->getLearnedKeyIndex();
+    char ir_text[80];
+    IRReceiverDriver::formatDecodedCode(_ir->getLastProtocol(), _ir->getLastCode(), ir_text, sizeof(ir_text));
     snprintf(buf, sizeof(buf),
         "{\"ok\":true,\"data\":{\"state\":\"%s\",\"state_detail\":\"%s\",\"speed\":%d,\"target_speed\":%d,\"gear\":%u,\"rpm\":%u,"
         "\"tach_pulses\":%lu,\"tach_level\":%u,\"timer_remaining\":%lu,"
@@ -542,7 +548,7 @@ void FanWeb::handleApiStatus() {
         "\"ip\":\"%s\",\"rssi\":%ld,\"clock\":\"%s\","
         "\"ir_learning\":%s,\"ir_key\":%u,\"ir_remaining\":%lu,\"ir_learn_seq\":%lu,"
         "\"ir_reject_seq\":%lu,\"ir_duplicate_key\":%u,"
-        "\"ir_last_protocol\":%u,\"ir_last_code\":\"0x%016llX\"}}",
+        "\"ir_last_protocol\":%u,\"ir_last_code\":\"0x%016llX\",\"ir_last_text\":\"%s\"}}",
         stateStr, stateDetail, _controller->getCurrentSpeed(), _controller->getTargetSpeed(),
         _controller->getCurrentGear(),
         _controller->getCurrentRpm(),
@@ -566,7 +572,8 @@ void FanWeb::handleApiStatus() {
         (unsigned long)_ir->getLearnRejectSequence(),
         _ir->getDuplicateKeyIndex(),
         _ir->getLastProtocol(),
-        (unsigned long long)_ir->getLastCode()
+        (unsigned long long)_ir->getLastCode(),
+        ir_text
     );
     Esp32BaseWeb::sendJson(200, buf);
 }
@@ -682,7 +689,7 @@ void FanWeb::handleApiSpeed() {
             return;
         }
         ESP32BASE_LOG_W("FanWeb", "invalid_speed_request");
-        Esp32BaseWeb::sendJson(400, "{\"error\":\"invalid request\"}");
+        Esp32BaseWeb::sendJson(400, "{\"ok\":false,\"error\":\"invalid request\"}");
     } else {
         char buf[64];
         snprintf(buf, sizeof(buf), "{\"ok\":true,\"speed\":%d,\"target_speed\":%d}",
@@ -710,7 +717,7 @@ void FanWeb::handleApiTimer() {
             return;
         }
         ESP32BASE_LOG_W("FanWeb", "invalid_timer_request");
-        Esp32BaseWeb::sendJson(400, "{\"error\":\"invalid request\"}");
+        Esp32BaseWeb::sendJson(400, "{\"ok\":false,\"error\":\"invalid request\"}");
     } else {
         char buf[64];
         snprintf(buf, sizeof(buf), "{\"ok\":true,\"timer_remaining\":%lu}", (unsigned long)_controller->getTimerRemaining());
@@ -906,5 +913,5 @@ void FanWeb::handleApiIrLearn() {
         }
     }
     ESP32BASE_LOG_W("FanWeb", "invalid_ir_learn_request");
-    Esp32BaseWeb::sendJson(400, "{\"error\":\"invalid request\"}");
+    Esp32BaseWeb::sendJson(400, "{\"ok\":false,\"error\":\"invalid request\"}");
 }

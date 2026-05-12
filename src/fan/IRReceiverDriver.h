@@ -1,6 +1,7 @@
 #ifndef IR_RECEIVER_DRIVER_H
 #define IR_RECEIVER_DRIVER_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <IRrecv.h>
 
@@ -53,6 +54,7 @@ public:
     uint32_t getLearnedSequence() const;
     uint32_t getLearnRejectSequence() const;
     uint8_t getDuplicateKeyIndex() const;
+    static void formatDecodedCode(uint8_t protocol, uint64_t code, char* out, size_t out_size);
 
 #ifdef UNIT_TEST
     void testQueueEvent(IREvent event);

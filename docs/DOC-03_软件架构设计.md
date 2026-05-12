@@ -73,7 +73,7 @@ Infrastructure
 | `Esp32BaseWatchdog` | 主循环看门狗 |
 | `Esp32BaseWiFi::setPowerSave` | 停止后进入 WiFi power save，替代 ESP8266 modem sleep |
 | `Esp32BaseFs` | LittleFS 挂载 |
-| `Esp32BaseFileLog` | `/logs/eb_app.log` 滚动日志；量产默认 WARN 级别 |
+| `Esp32BaseFileLog` | `/logs/eb_app.log` 滚动日志；当前实机验证使用 INFO，量产建议 WARN |
 | `Esp32BaseHealth` | 健康诊断 |
 | `Esp32BaseWiFi` | STA 连接、AP 配网、清凭证、power save |
 | `Esp32BaseDns` | captive portal DNS |

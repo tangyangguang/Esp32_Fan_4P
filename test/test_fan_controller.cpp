@@ -437,6 +437,15 @@ void test_fan_driver_begin_and_soft_start() {
     TEST_ASSERT_EQUAL(FAN_STATE_RUNNING, fan.getState());
 }
 
+void test_ir_nec_code_format_for_display() {
+    char text[80];
+    IRReceiverDriver::formatDecodedCode(3, 0x807F8877ULL, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("NEC addr 0x01 cmd 0x11 - raw 0x807F8877", text);
+
+    IRReceiverDriver::formatDecodedCode(1, 0x1234ULL, text, sizeof(text));
+    TEST_ASSERT_EQUAL_STRING("Protocol 1 - 0x0000000000001234", text);
+}
+
 void test_fan_driver_rpm_and_block_detection() {
     FanDriver fan(5, 12);
     fan.begin();
@@ -1000,6 +1009,37 @@ void test_web_api_speed_timer_config_and_ir() {
     TEST_ASSERT_EQUAL(2, ir.getLearnedKeyIndex());
 }
 
+void test_web_invalid_requests_return_ok_false() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    FanWeb web(controller, ir);
+    (void)web;
+    makeController(fan, buttons, led, ir, controller);
+
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("speed", "101");
+    FanWeb::handleApiSpeed();
+    TEST_ASSERT_EQUAL(400, g_lastCode);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("seconds", "356401");
+    FanWeb::handleApiTimer();
+    TEST_ASSERT_EQUAL(400, g_lastCode);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("key_index", "8");
+    FanWeb::handleApiIrLearn();
+    TEST_ASSERT_EQUAL(400, g_lastCode);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
+}
+
 void test_web_config_write_failure_returns_error_without_applying() {
     FanDriver fan(5, 12);
     ButtonDriver buttons(14, 4);
@@ -1155,6 +1195,7 @@ void test_web_pages_emit_html_chunks() {
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "name=long_points"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Recent points"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Trend points"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "ir_last_text"));
     TEST_ASSERT_NULL(strstr(g_chunkBody, "name=short_minutes"));
     TEST_ASSERT_NULL(strstr(g_chunkBody, "name=long_hours"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/history/config"));
@@ -1189,6 +1230,7 @@ void test_web_api_status() {
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"state_detail\":"));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"tach_pulses\":0"));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"tach_level\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ir_last_text\":\"None\""));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ip\":\"192.168.4.10\""));
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"clock\":\"2026-05-07 12:00:00\""));
 }
@@ -1266,6 +1308,7 @@ void test_web_api_history_and_config() {
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_fan_driver_begin_and_soft_start);
+    RUN_TEST(test_ir_nec_code_format_for_display);
     RUN_TEST(test_fan_driver_rpm_and_block_detection);
     RUN_TEST(test_button_driver_short_press_and_both_long);
     RUN_TEST(test_fan_history_defaults_sampling_and_wrap);
@@ -1288,6 +1331,7 @@ int main(int, char**) {
     RUN_TEST(test_controller_error_recovery_window_not_reset_by_repeated_speed);
     RUN_TEST(test_controller_factory_reset_clears_app_and_library_namespaces);
     RUN_TEST(test_web_api_speed_timer_config_and_ir);
+    RUN_TEST(test_web_invalid_requests_return_ok_false);
     RUN_TEST(test_web_config_write_failure_returns_error_without_applying);
     RUN_TEST(test_web_runtime_save_failure_returns_error);
     RUN_TEST(test_web_runtime_reset_api_success_and_failure);
