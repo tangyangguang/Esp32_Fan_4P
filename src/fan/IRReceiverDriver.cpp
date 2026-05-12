@@ -340,6 +340,18 @@ IREvent IRReceiverDriver::matchCode(uint8_t protocol, uint64_t code) {
                 case IR_KEY_TIMER_8H:
                     ESP32BASE_LOG_D("IR", "Matched: TIMER_8H");
                     return IR_EVENT_TIMER_8H;
+                case IR_KEY_GEAR_1:
+                    ESP32BASE_LOG_D("IR", "Matched: GEAR_1");
+                    return IR_EVENT_GEAR_1;
+                case IR_KEY_GEAR_2:
+                    ESP32BASE_LOG_D("IR", "Matched: GEAR_2");
+                    return IR_EVENT_GEAR_2;
+                case IR_KEY_GEAR_3:
+                    ESP32BASE_LOG_D("IR", "Matched: GEAR_3");
+                    return IR_EVENT_GEAR_3;
+                case IR_KEY_GEAR_4:
+                    ESP32BASE_LOG_D("IR", "Matched: GEAR_4");
+                    return IR_EVENT_GEAR_4;
                 default:
                     return IR_EVENT_NONE;
             }

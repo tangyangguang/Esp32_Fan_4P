@@ -23,7 +23,9 @@ Application
 Web/Application
   web/FanWeb.*
   - /fan
+  - /history
   - /config
+  - /ir
   - /api/*
 
 Business
@@ -108,7 +110,7 @@ Infrastructure
 
 1. 设置固件信息；默认 hostname 由 `ESP32BASE_DEFAULT_HOSTNAME` 编译宏提供。
 2. 调用 `Esp32BaseWeb::setDefaultAuth("admin", "admin")`，并设置设备名、业务首页和系统导航模式。
-3. 注册 `/fan`、`/config` 和 `/api/*` 路由；`/fan`、`/config` 通过 `addPage(path, title, handler)` 进入基础库导航。
+3. 注册 `/fan`、`/history`、`/config`、`/ir` 和 `/api/*` 路由；业务页面通过 `addPage(path, title, handler)` 进入基础库导航。
 4. 在 `Esp32Base::begin()` 前启用 Config write/read audit，覆盖基础库启动期配置读取。
 5. 调用 `Esp32Base::begin()`。
 6. 启用文件日志。

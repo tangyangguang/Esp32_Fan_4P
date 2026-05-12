@@ -14,7 +14,11 @@ enum IREvent {
     IR_EVENT_TIMER_1H,
     IR_EVENT_TIMER_2H,
     IR_EVENT_TIMER_4H,
-    IR_EVENT_TIMER_8H
+    IR_EVENT_TIMER_8H,
+    IR_EVENT_GEAR_1,
+    IR_EVENT_GEAR_2,
+    IR_EVENT_GEAR_3,
+    IR_EVENT_GEAR_4
 };
 
 // Key indices for learning
@@ -27,7 +31,11 @@ enum IRKeyIndex {
     IR_KEY_TIMER_2H = 5,
     IR_KEY_TIMER_4H = 6,
     IR_KEY_TIMER_8H = 7,
-    IR_KEY_COUNT = 8
+    IR_KEY_GEAR_1 = 8,
+    IR_KEY_GEAR_2 = 9,
+    IR_KEY_GEAR_3 = 10,
+    IR_KEY_GEAR_4 = 11,
+    IR_KEY_COUNT = 12
 };
 
 class IRReceiverDriver {

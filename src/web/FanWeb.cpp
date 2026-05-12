@@ -114,6 +114,10 @@ const char* irKeyName(uint8_t index) {
         case IR_KEY_TIMER_2H: return "2 h";
         case IR_KEY_TIMER_4H: return "4 h";
         case IR_KEY_TIMER_8H: return "8 h";
+        case IR_KEY_GEAR_1: return "Gear 1 / 25%";
+        case IR_KEY_GEAR_2: return "Gear 2 / 50%";
+        case IR_KEY_GEAR_3: return "Gear 3 / 75%";
+        case IR_KEY_GEAR_4: return "Gear 4 / 100%";
         default: return "Unknown";
     }
 }
@@ -340,7 +344,7 @@ void FanWeb::handleHistoryPage() {
 
 // Config Page HTML parts
 static const char CONFIG_PAGE_TOP[] PROGMEM =
-    "<div class=top><div><h2>Settings</h2><div class=muted>Fan behavior and IR learning</div></div></div>"
+    "<div class=top><div><h2>Settings</h2><div class=muted>Fan behavior and history</div></div></div>"
     "<form class=panel onsubmit='saveCfg(this);return false'>"
     "<h3>Fan behavior</h3><div class=formgrid><div class=field><label>Min speed (%)</label><input type=number name=min_speed min=0 max=50 value='";
 static const char CONFIG_MIN_END[] PROGMEM = "'><div class=help>Low commands rise to this value.</div></div>"
@@ -371,17 +375,10 @@ static const char CONFIG_RUNTIME_END[] PROGMEM =
     "<div><label>Trend s</label><input name=long_sample_s type=number min=10 max=600 value=10></div>"
     "<button id=histSaveBtn type=submit>Save</button></div>"
     "<div class=help>RAM only. Max 1200 points per range; restart clears history.</div><span id=histCfgMsg class='savebar muted'>Ready</span></form>"
-    "<div class=panel><h3>IR learning</h3><div class=irlist>";
-static const char CONFIG_IR_END[] PROGMEM =
-    "</div><div class=help>Press one, then point the remote within 10 seconds.</div><span id=irMsg class='savebar muted'>Ready</span></div>"
     "<script>"
-    "var irNames=['Speed Up','Speed Down','Stop','30 min','1 h','2 h','4 h','8 h'],irToken=0,irDeadline=0,irDup=-1,irReject=0,hitTimers={};function irName(i){return irNames[i]||('key '+i)}function irLeft(){return Math.max(0,Math.ceil((irDeadline-Date.now())/1000))}"
     "function setMsg(t,c){var m=document.getElementById('saveMsg');m.textContent=t;m.className='savebar '+c}"
     "function rf(s){s=parseInt(s||0);if(s<3600)return Math.floor(s/60)+'m '+(s%60)+'s';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m'}"
     "function setRun(t,c){var m=document.getElementById('runResetMsg');m.textContent=t;m.className='savebar '+c}"
-    "function setIr(t,c){var m=document.getElementById('irMsg');m.textContent=t;m.className='savebar '+c}"
-    "function setIrRow(i,t,c){var e=document.getElementById('irv'+i);if(e){e.textContent=t;e.className=c||''}}"
-    "function hitIr(i){var e=document.getElementById('irr'+i);if(!e)return;if(hitTimers[i])clearTimeout(hitTimers[i]);e.className='irrow hit';hitTimers[i]=setTimeout(()=>{e.className='irrow';delete hitTimers[i]},600)}"
     "function applyCfg(d,f){if(!d)return;f.min_speed.value=d.min_effective_speed;f.sleep_wait.value=d.sleep_wait;f.soft_start.value=d.soft_start;f.soft_stop.value=d.soft_stop;f.block_detect.value=d.block_detect;f.led_flash_ms.value=d.led_flash_ms;f.runtime_save_min.value=d.runtime_save_min;f.auto_restore.value=d.auto_restore?1:0}"
     "function reloadCfg(f){fetch('/api/config').then(r=>r.json()).then(j=>{if(j.ok)applyCfg(j.data,f)})}"
     "function saveCfg(f){var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='Saving';setMsg('Saving...','muted');fetch('/api/config',{method:'POST',body:new URLSearchParams(new FormData(f))}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Save';if(x.ok&&x.j.ok){applyCfg(x.j.data,f);var n=x.j.changed||0;setMsg('Saved - '+(n?n+' changed':'no changes')+' - '+new Date().toLocaleTimeString(),'oktxt')}else{reloadCfg(f);setMsg(x.j&&x.j.error?x.j.error:'Save failed','errtxt')}}).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('Save failed: network error','errtxt')})}"
@@ -391,12 +388,24 @@ static const char CONFIG_IR_END[] PROGMEM =
     "function applyHistCfg(d){var f=document.querySelector('form .histcfg').closest('form');if(!d||!f)return;f.short_points.value=d.short_points;f.short_sample_ms.value=d.short_sample_ms;f.long_points.value=d.long_points;f.long_sample_s.value=d.long_sample_s;setHistCfgMsg('Recent '+d.short_points+' points - '+hw(d.short_window_seconds)+' · Trend '+d.long_points+' points - '+hw(d.long_window_seconds),'muted')}"
     "function loadHistCfg(){fetch('/api/history/config').then(r=>r.json()).then(j=>{if(j.ok)applyHistCfg(j.data)}).catch(()=>setHistCfgMsg('Load failed','errtxt'))}"
     "function saveHistCfg(f){var b=document.getElementById('histSaveBtn');b.disabled=true;b.textContent='Saving';setHistCfgMsg('Saving...','muted');fetch('/api/history/config',{method:'POST',body:new URLSearchParams(new FormData(f))}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Save';if(x.ok&&x.j.ok){applyHistCfg(x.j.data);setHistCfgMsg('Saved in RAM - history reset','oktxt')}else setHistCfgMsg(x.j&&x.j.error?x.j.error:'Save failed','errtxt')}).catch(()=>{b.disabled=false;b.textContent='Save';setHistCfgMsg('Save failed: network error','errtxt')})}"
+    "loadHistCfg();"
+    "</script>";
+
+static const char IR_PAGE_TOP[] PROGMEM =
+    "<div class=top><div><h2>IR</h2><div class=muted>Remote learning</div></div></div>"
+    "<div class=panel><h3>IR learning</h3><div class=irlist>";
+static const char IR_PAGE_END[] PROGMEM =
+    "</div><div class=help>Press one, then point the remote within 10 seconds.</div><span id=irMsg class='savebar muted'>Ready</span></div>"
+    "<script>"
+    "var irNames=['Speed Up','Speed Down','Stop','30 min','1 h','2 h','4 h','8 h','Gear 1 / 25%','Gear 2 / 50%','Gear 3 / 75%','Gear 4 / 100%'],irToken=0,irDeadline=0,irDup=-1,irReject=0,hitTimers={};function irName(i){return irNames[i]||('key '+i)}function irLeft(){return Math.max(0,Math.ceil((irDeadline-Date.now())/1000))}"
+    "function setIr(t,c){var m=document.getElementById('irMsg');m.textContent=t;m.className='savebar '+c}"
+    "function setIrRow(i,t,c){var e=document.getElementById('irv'+i);if(e){e.textContent=t;e.className=c||''}}"
+    "function hitIr(i){var e=document.getElementById('irr'+i);if(!e)return;if(hitTimers[i])clearTimeout(hitTimers[i]);e.className='irrow hit';hitTimers[i]=setTimeout(()=>{e.className='irrow';delete hitTimers[i]},600)}"
     "function finishIr(i,n,seq,tok,retry){fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(d&&d.ir_learn_seq!=seq){var v=d.ir_last_text||('Protocol '+d.ir_last_protocol+' - '+d.ir_last_code);setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt')}else if(d&&d.ir_learning&&(retry||0)<2)setTimeout(()=>finishIr(i,n,seq,tok,(retry||0)+1),500);else setIr('Learn timeout - no valid signal','errtxt')}).catch(()=>{if(tok==irToken)setIr('Learn timeout - no valid signal','errtxt')})}"
     "function showLearn(n){var l=irLeft();if(l<=0)return false;if(irDup>=0)setIr('Already assigned to '+irName(irDup)+'. Clear that key first - '+l+'s','errtxt');else setIr('Learning '+n+' - '+l+'s','muted');return true}"
     "function watchIr(i,n,seq,tok){if(tok!=irToken)return;if(!showLearn(n)){finishIr(i,n,seq,tok);return}fetch('/api/status').then(r=>r.json()).then(j=>{if(tok!=irToken)return;var d=j.data;if(!d)return;if(d.ir_learn_seq!=seq){var v=d.ir_last_text||('Protocol '+d.ir_last_protocol+' - '+d.ir_last_code);setIrRow(i,v,'');setIr('Learned '+n+' - '+v,'oktxt');return}if(!d.ir_learning){setIr('Learn timeout - no valid signal','errtxt');return}var nd=d.ir_duplicate_key<irNames.length?d.ir_duplicate_key:-1;if(nd>=0&&(nd!=irDup||d.ir_reject_seq!=irReject))hitIr(nd);irDup=nd;irReject=d.ir_reject_seq;setTimeout(()=>watchIr(i,n,seq,tok),500)}).catch(()=>{if(tok!=irToken)return;if(showLearn(n))setTimeout(()=>watchIr(i,n,seq,tok),500);else finishIr(i,n,seq,tok)})}"
     "function learn(i,n){irToken++;irDup=-1;irReject=0;var tok=irToken;setIr('Starting '+n+'...','muted');fetch('/api/ir/learn',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key_index='+i}).then(r=>r.json()).then(d=>{if(d.ok){irReject=d.rej_seq||0;irDeadline=Date.now()+d.timeout*1000;watchIr(i,n,d.seq,tok)}else setIr('Learn failed','errtxt')}).catch(()=>setIr('Learn failed: network error','errtxt'))}"
     "function clearIr(i,n){if(!confirm('Clear IR code for '+n+'?'))return;setIr('Clearing '+n+'...','muted');fetch('/api/ir/learn',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key_index='+i+'&clear=1'}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{if(x.ok&&x.j.ok){setIrRow(i,'Not learned','');setIr(x.j.changed?('Cleared '+n):('No code for '+n),x.j.changed?'oktxt':'muted');setTimeout(()=>location.reload(),600)}else setIr('Clear failed','errtxt')}).catch(()=>setIr('Clear failed: network error','errtxt'))}"
-    "loadHistCfg();"
     "</script>";
 
 void FanWeb::handleConfigPage() {
@@ -454,6 +463,17 @@ void FanWeb::handleConfigPage() {
     Esp32BaseWeb::sendChunk(duration);
     Esp32BaseWeb::sendChunk(CONFIG_RUNTIME_END);
 
+    Esp32BaseWeb::sendFooter();
+}
+
+void FanWeb::handleIrPage() {
+    if (!Esp32BaseWeb::checkAuth()) return;
+    ESP32BASE_LOG_I("FanWeb", "page_view path=/ir");
+
+    Esp32BaseWeb::sendHeader();
+    Esp32BaseWeb::sendChunk(APP_STYLE);
+    Esp32BaseWeb::sendChunk(IR_PAGE_TOP);
+
     for (uint8_t i = 0; i < IR_KEY_COUNT; i++) {
         uint8_t protocol = 0;
         uint64_t code = 0;
@@ -492,7 +512,7 @@ void FanWeb::handleConfigPage() {
             i, irKeyName(i), i, irKeyName(i));
         Esp32BaseWeb::sendChunk(row);
     }
-    Esp32BaseWeb::sendChunk(CONFIG_IR_END);
+    Esp32BaseWeb::sendChunk(IR_PAGE_END);
 
     Esp32BaseWeb::sendFooter();
 }

@@ -41,6 +41,10 @@ bool fanAppRegisterFanRoutes() {
         ESP32BASE_LOG_E("main", "custom Web route registration failed: /config");
         ok = false;
     }
+    if (!Esp32BaseWeb::addPage("/ir", "IR", FanWeb::handleIrPage)) {
+        ESP32BASE_LOG_E("main", "custom Web route registration failed: /ir");
+        ok = false;
+    }
     if (!Esp32BaseWeb::addApi("/api/status", FanWeb::handleApiStatus)) {
         ESP32BASE_LOG_E("main", "custom Web route registration failed: /api/status");
         ok = false;

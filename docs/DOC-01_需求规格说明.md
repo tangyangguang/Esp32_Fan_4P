@@ -22,7 +22,7 @@
 | F-02 | TACH 转速反馈 | 四线风扇转速测量误差 <= 5%，更新频率 >= 1 Hz | 本项目 FanDriver |
 | F-03 | 堵转保护 | 输出达到最低有效转速且无 RPM 持续达到配置值时切断输出并报警；任意启动指令可恢复尝试 | 本项目 FanDriver/FanController |
 | F-04 | 本地按键 | 加速/减速短按调档；同时长按 >5s 执行完整出厂重置，清除风扇配置、WiFi 凭证和 Web 密码；响应 <= 200 ms | 本项目 ButtonDriver/FanController |
-| F-05 | 红外学习 | Web 触发学习，支持常见协议，记录加速、减速、停止、30min、1h、2h、4h、8h | 本项目 IRReceiverDriver/FanWeb |
+| F-05 | 红外学习 | Web 触发学习，支持常见协议，记录加速、减速、停止、30min、1h、2h、4h、8h、1-4 档直接命令 | 本项目 IRReceiverDriver/FanWeb |
 | F-06 | 定时运行 | 支持 30min/1h/2h/4h/8h 预设和最大 99 小时自定义，倒计时结束停止 | 本项目 FanController/FanWeb |
 | F-07 | Web 控制 | `/fan` 查看状态并控制速度/定时，Basic Auth 鉴权，页面移动端可用 | Esp32Base Web + 本项目 FanWeb |
 | F-08 | REST API | 提供 `/api/status`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/config`、`/api/runtime/reset`、`/api/ir/learn`、`/api/history`、`/api/history/config` | Esp32Base 路由 + 本项目 FanWeb |
@@ -33,7 +33,7 @@
 | F-13 | 软启动/软停止 | 默认 1 秒，范围 0-10 秒可配置 | 本项目 FanDriver/FanController |
 | F-14 | 低功耗策略 | 风扇停止且空闲达到配置值后启用 WiFi power save，保持 Web 可访问 | 本项目策略 + Esp32BaseWiFi |
 | F-15 | mDNS | 使用 `esp32-fan.local` 或后续动态 hostname 访问 | Esp32Base mDNS |
-| F-16 | 配置页面 | Web 修改风扇参数、恢复策略、红外学习 | 本项目 FanWeb + Esp32BaseConfig |
+| F-16 | 配置页面 | `/config` 修改风扇参数、恢复策略和历史配置；`/ir` 进行红外学习 | 本项目 FanWeb + Esp32BaseConfig |
 | F-17 | Web Auth | 通过 Esp32Base 内置页面修改账号密码 | Esp32Base `/esp32base/auth` |
 | F-18 | BOOT 清 WiFi | GPIO0 长按 5 秒清除 WiFi 凭证并重启 | main + Esp32BaseWiFi |
 | F-19 | LED 指示 | 档位亮度、WiFi 慢闪、故障快闪、操作闪烁 | 本项目 LedIndicator |
@@ -107,7 +107,7 @@
 | --- | --- | --- | --- |
 | F-01, F-02, F-03, F-13 | FanDriver | Log | 已实现，PWM 和软启动/停止已实测通过，待 TACH 实机仪器验证 |
 | F-04, F-19 | ButtonDriver, LedIndicator | Log | 已实现，native 测试通过，待硬件操作验证 |
-| F-05 | IRReceiverDriver, FanWeb | Web, Config, Log | 已实现，待真实遥控器验证 |
+| F-05 | IRReceiverDriver, FanWeb | Web, IR, Log | 已实现，待真实遥控器验证 |
 | F-06, F-12, S-01 | FanController | Config, Log | 已实现，native 测试通过；累计运行时长当前不升级 64-bit |
 | F-07, F-08, F-16 | FanWeb | Web, Config, Log | 已实现，固件构建通过 |
 | F-09 | main, FanController | Fs, FileLog, Web Logs | 日志页面和文件日志基础访问已实机验证，继续观察长期轮转 |

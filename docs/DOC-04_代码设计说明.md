@@ -25,7 +25,7 @@
 | `last_spd` | `target_speed` | int | 0 | 上次速度 |
 | `last_tim` | `timer_remaining` | int | 0 | 上次剩余定时秒数 |
 | `run_s` | `run_duration` | int | 0 | 累计运行秒数；当前不升级 64-bit，见 `docs/RUN_DURATION_DECISION.md` |
-| `ir_0..7` | IR 状态字段 | string | 空 | 红外学习码，格式为 `protocol:hexCode` |
+| `ir_0..11` | IR 状态字段 | string | 空 | 红外学习码，格式为 `protocol:hexCode`；`ir_0..7` 保持原有含义，`ir_8..11` 为 1-4 档 |
 
 应用不得使用 `eb_` 前缀 namespace，避免与 Esp32Base 内部配置冲突。Web Auth 使用 Esp32Base 内置持久化能力，应用只通过 `Esp32BaseWeb::setDefaultAuth("admin", "admin")` 提供默认值，账号密码修改统一走 `/esp32base/auth`。
 
@@ -101,7 +101,8 @@ RAM 历史曲线由 `FanHistory` 维护，两组环形缓冲均只保存在 RAM 
 
 - `GET /fan`：状态和控制。
 - `GET /history`：宽屏历史曲线。
-- `GET /config`：参数配置和红外学习入口。
+- `GET /config`：参数配置、运行时和历史曲线配置。
+- `GET /ir`：红外学习入口。
 - Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Auth、Reboot，并通过 `addPage(path, title, handler)` 展示业务入口。
 
 API：
@@ -114,7 +115,7 @@ API：
 | `/api/stop` | 无 | 停止风扇 |
 | `/api/config` | 配置表单字段 | 保存或读取配置 |
 | `/api/runtime/reset` | 无，POST | 清零 Total run 和 `fan/run_s`，不清零 Boot run |
-| `/api/ir/learn` | `key_index=0..7`，可选 `clear=1` | 启动或清除红外学习码 |
+| `/api/ir/learn` | `key_index=0..11`，可选 `clear=1` | 启动或清除红外学习码 |
 | `/api/history` | `range=short|long`，可选 `since_seq` | 分段返回 RAM 历史曲线点，点内含 `seq` 和 `t_ms` |
 | `/api/history/config` | `short_points`、`short_sample_ms`、`long_points`、`long_sample_s` | 配置 RAM 历史点数和采样周期；窗口时长自动计算 |
 
@@ -202,10 +203,10 @@ API：
 - `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用、BOOT 清 WiFi 时序、持久化失败事务边界和 IR 保存失败回滚。
 - 串口上传已验证；每次烧录前应重新确认实际串口，上传速率固定为 115200。
 - `pio run -e esp32dev -t webota` 通过，使用 Esp32Base `scripts/esp32base_webota.py`。
-- AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs`、`/esp32base/auth` 和 `/esp32base/ota` 已完成首轮实机验证；具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。
+- AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs`、`/esp32base/auth` 和 `/esp32base/ota` 已完成首轮实机验证；`/ir` 需随下一轮 Web 验证确认，具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。
 - 已通过 `/esp32base/ota` 上传固件，重启后基础库和业务页面/API 恢复正常。
 - 已验证 WiFi power save 后 `/api/status` 仍可访问；具体测试参数以当次验证记录为准。
-- `/fan` 和 `/config` 通过 `Esp32BaseWeb::addPage(path, title, handler)` 注册为业务入口，`/esp32base` 首页和内置顶栏已展示 Fan、Settings。
+- `/fan`、`/history`、`/config` 和 `/ir` 通过 `Esp32BaseWeb::addPage(path, title, handler)` 注册为业务入口，`/esp32base` 首页和内置顶栏已展示 Fan、History、Settings、IR。
 - Esp32Base Health tick 和 NTP 未同步降噪已完成首轮观察。
 
 观察项：

@@ -69,7 +69,7 @@
 
 目标：
 
-- 完成 `/fan`、`/config` 和 `/api/*`。
+- 完成 `/fan`、`/history`、`/config`、`/ir` 和 `/api/*`。
 - 验证 Esp32Base Web、Auth、WiFi、DNS、NTP、mDNS、FileLog、OTA、Watchdog、Health。
 
 验收：
@@ -80,11 +80,11 @@
 
 当前结果：
 
-- AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs` 和 `/esp32base/ota` 已完成首轮实机验证；具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。
+- AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs` 和 `/esp32base/ota` 已完成首轮实机验证；`/ir` 需随下一轮 Web 验证确认，具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。
 - 已通过 `/esp32base/ota` 上传固件，重启后基础库状态、业务 API、`/fan` 和日志页恢复正常。
 - 已接入并验证 `pio run -e esp32dev -t webota`。
 - 已验证 WiFi power save 后 `/api/status` 仍可访问；具体测试参数以当次验证记录为准。
-- 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
+- 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`History`、`Settings`、`IR` 入口。
 - Web Auth 已使用 Esp32Base 内置持久化能力，默认账号密码由应用提供，修改入口为 `/esp32base/auth`。
 - Esp32Base Health tick、NTP 未同步降噪和 mDNS 首次解析延迟已完成首轮观察；mDNS 若多设备稳定复现明显延迟，再反馈 Esp32Base。
 
@@ -113,7 +113,7 @@
 
 ## 5. 下一步计划
 
-1. 在浏览器中人工检查 `/esp32base`、`/fan`、`/config`、`/esp32base/logs` 的页面交互体验。
+1. 在浏览器中人工检查 `/esp32base`、`/fan`、`/history`、`/config`、`/ir`、`/esp32base/logs` 的页面交互体验。
 2. 接入四线风扇验证 TACH RPM 和堵转保护。
 3. 测试 BOOT 长按清 WiFi 凭证并重新进入配网。
 4. 验证两键同时长按 5 秒出厂重置。

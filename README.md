@@ -16,7 +16,7 @@
 - 核心 native 单元测试。
 - 串口烧录已验证；每次烧录前以 `ls /dev/cu.*` 重新确认实际 ESP32 串口。
 - 已通过 Esp32Base AP 配网并连接局域网。
-- 已验证 `/fan`、`/config`、业务 API 和 `/esp32base/api/status` 可访问。
+- 已验证 `/fan`、`/config`、业务 API 和 `/esp32base/api/status` 可访问；`/ir` 为红外学习独立入口。
 
 ## 目标功能
 
@@ -79,10 +79,10 @@ pio device monitor -e esp32dev
 - `pio test -e native` 通过。
 - 串口上传已验证；每次烧录前应重新确认实际串口，上传速率固定为 115200。
 - `pio run -e esp32dev -t webota` 通过。
-- AP 配网、`/esp32base/api/status`、`/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop`、`/esp32base/logs` 和 `/esp32base/ota` 已完成首轮实机请求验证。
+- AP 配网、`/esp32base/api/status`、`/api/status`、`/fan`、`/config`、`/api/speed`、`/api/timer`、`/api/stop`、`/esp32base/logs` 和 `/esp32base/ota` 已完成首轮实机请求验证；`/ir` 页面需随下一轮 Web 验证确认。
 - 已通过 `/esp32base/ota` 上传固件，OTA 后基础库状态、业务 API、`/fan` 和日志页恢复正常。
 - 已验证 WiFi power save 后 `/api/status` 仍可访问；具体 `sleep_wait` 测试值以验证记录为准。
-- 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`Settings` 入口。
+- 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`History`、`Settings`、`IR` 入口。
 - Web Auth 已迁移到 Esp32Base 内置持久化能力；本项目设置默认 `admin/admin`，账号密码修改入口为 `/esp32base/auth`。
 - Esp32Base Health tick、NTP 未同步降噪和 mDNS 首次解析延迟已完成首轮观察；mDNS 若多设备稳定复现明显延迟，再反馈 Esp32Base。
 

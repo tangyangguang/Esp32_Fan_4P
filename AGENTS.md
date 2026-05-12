@@ -22,7 +22,7 @@
 - `Esp32BaseConfig::enableConfigReadAudit(true)` 必须保持开启。
 - `/esp32base/logs` 中出现配置读取明文值，包括 WiFi 密码、Web 密码等，是调试和现场观察设计，不是 bug。
 - 不要提出“配置审计默认脱敏”的基础库提示词，也不要在本项目关闭读取审计。
-- Esp32Base Web 业务入口最终 API 为 `Esp32BaseWeb::addPage(path, title, handler)`；本项目显式注册 `/fan -> Fan`、`/config -> Settings`。
+- Esp32Base Web 业务入口最终 API 为 `Esp32BaseWeb::addPage(path, title, handler)`；本项目显式注册 `/fan -> Fan`、`/history -> History`、`/config -> Settings`、`/ir -> IR`。
 - 不保留旧 `addPage(path, handler)` 写法。
 - 不在本项目保留临时 `/app` 应用入口页；业务入口由 Esp32Base 首页和内置顶栏展示。
 - Web Auth 使用 Esp32Base 内置持久化能力，本项目只设置默认 `Esp32BaseWeb::setDefaultAuth("admin", "admin")`。
@@ -34,7 +34,8 @@
 
 ## 5. Web 和 API 规范
 - `/fan` 是风扇主控制页。
-- `/config` 是风扇参数和红外学习配置页。
+- `/config` 是风扇参数和历史曲线配置页。
+- `/ir` 是红外学习配置页。
 - `/esp32base/*` 是基础库管理页，包括 WiFi、OTA、Logs、Auth、Reboot 等。
 - 业务页必须调用 `Esp32BaseWeb::checkAuth()`。
 - 业务页只能使用 Esp32BaseWeb 公开 API，不直接依赖底层 `WebServer`。

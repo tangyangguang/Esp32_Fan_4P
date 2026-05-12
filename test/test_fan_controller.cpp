@@ -82,6 +82,7 @@ bool g_configReadAuditEnabled = false;
 uint8_t g_addPageCount = 0;
 uint8_t g_addApiCount = 0;
 char g_addPagePaths[4][32] = {};
+char g_addPageTitles[4][32] = {};
 char g_failAddPagePath[32] = "";
 char g_failAddApiPath[32] = "";
 char g_failSetIntKey[16] = "";
@@ -297,10 +298,12 @@ bool Esp32BaseWeb::saveAuth(const char* user, const char* pass) {
     return true;
 }
 bool Esp32BaseWeb::resetAuth() { return true; }
-bool Esp32BaseWeb::addPage(const char* path, const char*, Handler) {
+bool Esp32BaseWeb::addPage(const char* path, const char* title, Handler) {
     if (g_addPageCount < 4) {
         strncpy(g_addPagePaths[g_addPageCount], path ? path : "", sizeof(g_addPagePaths[0]) - 1);
         g_addPagePaths[g_addPageCount][sizeof(g_addPagePaths[0]) - 1] = '\0';
+        strncpy(g_addPageTitles[g_addPageCount], title ? title : "", sizeof(g_addPageTitles[0]) - 1);
+        g_addPageTitles[g_addPageCount][sizeof(g_addPageTitles[0]) - 1] = '\0';
     }
     ++g_addPageCount;
     return strcmp(path ? path : "", g_failAddPagePath) != 0;
@@ -401,6 +404,7 @@ void setUp() {
     g_configReadAuditEnabled = false;
     g_addPageCount = 0;
     memset(g_addPagePaths, 0, sizeof(g_addPagePaths));
+    memset(g_addPageTitles, 0, sizeof(g_addPageTitles));
     g_addApiCount = 0;
     g_failAddPagePath[0] = '\0';
     g_failAddApiPath[0] = '\0';
@@ -522,10 +526,12 @@ void test_app_runtime_registers_routes_and_enables_audit() {
     TEST_ASSERT_EQUAL_STRING("admin", Esp32BaseWeb::authUser());
 
     TEST_ASSERT_TRUE(fanAppRegisterFanRoutes());
-    TEST_ASSERT_EQUAL(3, g_addPageCount);
+    TEST_ASSERT_EQUAL(4, g_addPageCount);
     TEST_ASSERT_EQUAL_STRING("/fan", g_addPagePaths[0]);
     TEST_ASSERT_EQUAL_STRING("/history", g_addPagePaths[1]);
     TEST_ASSERT_EQUAL_STRING("/config", g_addPagePaths[2]);
+    TEST_ASSERT_EQUAL_STRING("/ir", g_addPagePaths[3]);
+    TEST_ASSERT_EQUAL_STRING("IR", g_addPageTitles[3]);
     TEST_ASSERT_EQUAL(9, g_addApiCount);
 
     fanAppEnableConfigAuditBeforeBegin();
@@ -537,7 +543,7 @@ void test_app_runtime_reports_route_registration_failure() {
     strcpy(g_failAddApiPath, "/api/stop");
 
     TEST_ASSERT_FALSE(fanAppRegisterFanRoutes());
-    TEST_ASSERT_EQUAL(3, g_addPageCount);
+    TEST_ASSERT_EQUAL(4, g_addPageCount);
     TEST_ASSERT_EQUAL(9, g_addApiCount);
 }
 
@@ -966,6 +972,31 @@ void test_controller_error_recovery_window_not_reset_by_repeated_speed() {
     TEST_ASSERT_EQUAL(SYS_ERROR, controller.getState());
 }
 
+void test_controller_ir_direct_gear_events_set_speed() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    makeController(fan, buttons, led, ir, controller);
+    controller.setSoftStartTime(0);
+    controller.setBlockDetectTime(60000);
+
+    const IREvent events[4] = {
+        IR_EVENT_GEAR_1,
+        IR_EVENT_GEAR_2,
+        IR_EVENT_GEAR_3,
+        IR_EVENT_GEAR_4
+    };
+    const uint8_t speeds[4] = {25, 50, 75, 100};
+    for (uint8_t i = 0; i < 4; ++i) {
+        ir.testQueueEvent(events[i]);
+        controller.tick();
+        TEST_ASSERT_EQUAL(speeds[i], controller.getTargetSpeed());
+        TEST_ASSERT_EQUAL(i + 1, controller.getCurrentGear());
+    }
+}
+
 void test_web_api_speed_timer_config_and_ir() {
     FanDriver fan(5, 12);
     ButtonDriver buttons(14, 4);
@@ -1007,6 +1038,14 @@ void test_web_api_speed_timer_config_and_ir() {
     TEST_ASSERT_EQUAL(200, g_lastCode);
     TEST_ASSERT_TRUE(ir.isLearning());
     TEST_ASSERT_EQUAL(2, ir.getLearnedKeyIndex());
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("key_index", "11");
+    FanWeb::handleApiIrLearn();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_TRUE(ir.isLearning());
+    TEST_ASSERT_EQUAL(11, ir.getLearnedKeyIndex());
 }
 
 void test_web_invalid_requests_return_ok_false() {
@@ -1034,7 +1073,7 @@ void test_web_invalid_requests_return_ok_false() {
 
     webReset();
     webSetMethod(Esp32BaseWeb::METHOD_POST);
-    webSetParam("key_index", "8");
+    webSetParam("key_index", "12");
     FanWeb::handleApiIrLearn();
     TEST_ASSERT_EQUAL(400, g_lastCode);
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
@@ -1195,13 +1234,29 @@ void test_web_pages_emit_html_chunks() {
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "name=long_points"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Recent points"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Trend points"));
-    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "ir_last_text"));
+    TEST_ASSERT_NULL(strstr(g_chunkBody, "IR learning"));
+    TEST_ASSERT_NULL(strstr(g_chunkBody, "/api/ir/learn"));
+    TEST_ASSERT_NULL(strstr(g_chunkBody, "ir_last_text"));
     TEST_ASSERT_NULL(strstr(g_chunkBody, "name=short_minutes"));
     TEST_ASSERT_NULL(strstr(g_chunkBody, "name=long_hours"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/history/config"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Clear total run"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/runtime/reset"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "confirm('Clear total run?"));
+
+    webReset();
+    FanWeb::handleIrPage();
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "<h2>IR</h2>"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "IR learning"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/ir/learn"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "ir_last_text"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Speed Up"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Gear 1 / 25%"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Gear 2 / 50%"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Gear 3 / 75%"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Gear 4 / 100%"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "learn(11,\"Gear 4 / 100%\")"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "clearIr(11,\"Gear 4 / 100%\")"));
 
     webReset();
     FanWeb::handleHistoryPage();
@@ -1329,6 +1384,7 @@ int main(int, char**) {
     RUN_TEST(test_controller_reset_total_run_duration_failure_rolls_back);
     RUN_TEST(test_controller_ignores_negative_persisted_values);
     RUN_TEST(test_controller_error_recovery_window_not_reset_by_repeated_speed);
+    RUN_TEST(test_controller_ir_direct_gear_events_set_speed);
     RUN_TEST(test_controller_factory_reset_clears_app_and_library_namespaces);
     RUN_TEST(test_web_api_speed_timer_config_and_ir);
     RUN_TEST(test_web_invalid_requests_return_ok_false);

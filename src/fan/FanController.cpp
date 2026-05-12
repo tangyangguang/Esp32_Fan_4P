@@ -756,6 +756,21 @@ void FanController::_processIREvents() {
             else ESP32BASE_LOG_W("FanCtrl", "IR timer 8h failed");
             break;
 
+        case IR_EVENT_GEAR_1:
+        case IR_EVENT_GEAR_2:
+        case IR_EVENT_GEAR_3:
+        case IR_EVENT_GEAR_4: {
+            const uint8_t gear = static_cast<uint8_t>(event - IR_EVENT_GEAR_1 + 1);
+            const uint8_t speed = GEAR_SPEED[gear];
+            if (setSpeed(speed)) {
+                ESP32BASE_LOG_I("FanCtrl", "IR: Gear %u (%u%%)", gear, speed);
+            } else {
+                ESP32BASE_LOG_W("FanCtrl", "IR gear %u failed target=%u",
+                                static_cast<unsigned>(gear), static_cast<unsigned>(speed));
+            }
+            break;
+        }
+
         default:
             break;
     }
