@@ -58,10 +58,6 @@ void setup() {
         }
     }
 
-#if ESP32BASE_ENABLE_FILELOG
-    Esp32BaseFileLog::enable("/logs/eb_app.log", 32UL * 1024UL, Esp32BaseLog::INFO, 4);
-#endif
-
     fanController.begin();
     fanHistory.begin();
     ESP32BASE_LOG_I("main", "ESP32_Fan_4P started");
