@@ -30,6 +30,10 @@ const char* KEY_LAST_TIMER = "last_tim";
 const char* KEY_RUN_DURATION = "run_s";
 const char* KEY_IR_ENTRY = "ir_";
 
+const uint8_t RUNTIME_SAVE_MIN_MINUTES = 10;
+const uint8_t RUNTIME_SAVE_DEFAULT_MINUTES = 10;
+const uint8_t RUNTIME_SAVE_MAX_MINUTES = 60;
+
 // Gear to speed mapping
 const uint8_t GEAR_SPEED[5] = {0, 25, 50, 75, 100};
 
@@ -103,7 +107,7 @@ FanController::FanController(FanDriver& fan, ButtonDriver& btn, LedIndicator& le
     , _soft_stop_time(1000)
     , _block_detect_time(1500)
     , _led_flash_duration_ms(200)
-    , _runtime_save_interval_min(1)
+    , _runtime_save_interval_min(RUNTIME_SAVE_DEFAULT_MINUTES)
     , _min_effective_speed(10)
     , _is_sleeping(false)
     , _auto_restore(true)
@@ -458,8 +462,8 @@ bool FanController::applyConfig(uint8_t min_speed, uint16_t soft_start, uint16_t
     if (sleep_wait < 1) sleep_wait = 1;
     if (sleep_wait > 3600) sleep_wait = 3600;
     if (led_flash_ms > 2000) led_flash_ms = 2000;
-    if (runtime_save_min < 1) runtime_save_min = 1;
-    if (runtime_save_min > 60) runtime_save_min = 60;
+    if (runtime_save_min < RUNTIME_SAVE_MIN_MINUTES) runtime_save_min = RUNTIME_SAVE_MIN_MINUTES;
+    if (runtime_save_min > RUNTIME_SAVE_MAX_MINUTES) runtime_save_min = RUNTIME_SAVE_MAX_MINUTES;
 
     uint8_t count = 0;
     bool ok = true;
@@ -799,7 +803,7 @@ void FanController::_processTimer() {
     } else if (_timer_remaining <= 60 && _timer_remaining % 10 == 0) {
         ESP32BASE_LOG_D("FanCtrl", "Timer remaining: %lus", static_cast<unsigned long>(_timer_remaining));
     }
-    _saveRuntimeState(_timer_remaining <= 60 && _timer_remaining % 10 == 0);
+    _saveRuntimeState();
 }
 
 void FanController::_processSleep() {
@@ -910,9 +914,9 @@ void FanController::_loadConfig() {
     if (led_flash_ms > 2000) led_flash_ms = 2000;
     _led_flash_duration_ms = static_cast<uint16_t>(led_flash_ms);
     _led.setFlashDuration(_led_flash_duration_ms);
-    int32_t runtime_save_min = cfgGetInt(KEY_RUNTIME_SAVE_MIN, 1);
-    if (runtime_save_min < 1) runtime_save_min = 1;
-    if (runtime_save_min > 60) runtime_save_min = 60;
+    int32_t runtime_save_min = cfgGetInt(KEY_RUNTIME_SAVE_MIN, RUNTIME_SAVE_DEFAULT_MINUTES);
+    if (runtime_save_min < RUNTIME_SAVE_MIN_MINUTES) runtime_save_min = RUNTIME_SAVE_MIN_MINUTES;
+    if (runtime_save_min > RUNTIME_SAVE_MAX_MINUTES) runtime_save_min = RUNTIME_SAVE_MAX_MINUTES;
     _runtime_save_interval_min = static_cast<uint8_t>(runtime_save_min);
 
     int32_t soft_start = cfgGetInt(KEY_SOFT_START, 1000);

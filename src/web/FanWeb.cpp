@@ -358,7 +358,7 @@ static const char CONFIG_STOP_END[] PROGMEM = "'><div class=help>Ramp down time.
 static const char CONFIG_BLOCK_END[] PROGMEM = "'><div class=help>No RPM for this long means blocked.</div></div>"
     "<div class=field><label>LED flash (ms)</label><input type=number name=led_flash_ms min=0 max=2000 value='";
 static const char CONFIG_LED_FLASH_END[] PROGMEM = "'><div class=help>0 disables action feedback flash.</div></div>"
-    "<div class=field><label>Runtime save (min)</label><input type=number name=runtime_save_min min=1 max=60 value='";
+    "<div class=field><label>Runtime save (min)</label><input type=number name=runtime_save_min min=10 max=60 value='";
 static const char CONFIG_RUNTIME_SAVE_END[] PROGMEM = "'><div class=help>Larger values reduce Flash wear; after power loss, timer and total run can lose up to this interval.</div></div>"
     "<div class=field><label>Power-on restore</label><select name=auto_restore><option value=1 ";
 static const char CONFIG_AUTO_END[] PROGMEM = ">Enabled</option><option value=0 ";
@@ -661,6 +661,7 @@ void FanWeb::handleApiHistoryConfig() {
         sendHistoryConfigJson(_history->config());
         return;
     }
+    if (!Esp32BaseWeb::checkPostAllowed("fan_history_config")) return;
 
     uint32_t shortPoints = 0;
     uint32_t shortSampleMs = 0;
@@ -694,6 +695,7 @@ void FanWeb::handleApiSpeed() {
     if (!Esp32BaseWeb::checkAuth()) return;
 
     if (Esp32BaseWeb::isMethod(Esp32BaseWeb::METHOD_POST)) {
+        if (!Esp32BaseWeb::checkPostAllowed("fan_speed")) return;
         uint32_t speed = 0;
         if (parseUintParam("speed", 0, 100, &speed)) {
             ESP32BASE_LOG_I("FanWeb", "user_action speed=%lu", static_cast<unsigned long>(speed));
@@ -722,6 +724,7 @@ void FanWeb::handleApiTimer() {
     if (!Esp32BaseWeb::checkAuth()) return;
 
     if (Esp32BaseWeb::isMethod(Esp32BaseWeb::METHOD_POST)) {
+        if (!Esp32BaseWeb::checkPostAllowed("fan_timer")) return;
         uint32_t seconds = 0;
         if (parseUintParam("seconds", 0, 356400, &seconds)) {
             ESP32BASE_LOG_I("FanWeb", "user_action timer_seconds=%lu", static_cast<unsigned long>(seconds));
@@ -746,7 +749,7 @@ void FanWeb::handleApiTimer() {
 }
 
 void FanWeb::handleApiStop() {
-    if (!Esp32BaseWeb::checkAuth()) return;
+    if (!Esp32BaseWeb::checkPostAllowed("fan_stop")) return;
     ESP32BASE_LOG_I("FanWeb", "user_action stop_fan");
     if (!_controller->stop()) {
         ESP32BASE_LOG_W("FanWeb", "stop_request_failed");
@@ -760,6 +763,7 @@ void FanWeb::handleApiConfig() {
     if (!Esp32BaseWeb::checkAuth()) return;
 
     if (Esp32BaseWeb::isMethod(Esp32BaseWeb::METHOD_POST)) {
+        if (!Esp32BaseWeb::checkPostAllowed("fan_config")) return;
         ESP32BASE_LOG_I("FanWeb", "user_action save_config");
         uint8_t changed = 0;
         uint8_t min_speed = _controller->getMinEffectiveSpeed();
@@ -821,7 +825,7 @@ void FanWeb::handleApiConfig() {
         }
         if (Esp32BaseWeb::hasParam("runtime_save_min")) {
             uint32_t parsed = 0;
-            if (!parseUintParam("runtime_save_min", 1, 60, &parsed)) {
+            if (!parseUintParam("runtime_save_min", 10, 60, &parsed)) {
                 Esp32BaseWeb::sendJson(400, "{\"ok\":false,\"error\":\"invalid runtime_save_min\"}");
                 return;
             }
@@ -879,12 +883,7 @@ void FanWeb::handleApiConfig() {
 }
 
 void FanWeb::handleApiRuntimeReset() {
-    if (!Esp32BaseWeb::checkAuth()) return;
-
-    if (!Esp32BaseWeb::isMethod(Esp32BaseWeb::METHOD_POST)) {
-        Esp32BaseWeb::sendJson(405, "{\"ok\":false,\"error\":\"method not allowed\"}");
-        return;
-    }
+    if (!Esp32BaseWeb::checkPostAllowed("fan_runtime_reset")) return;
 
     ESP32BASE_LOG_W("FanWeb", "user_action reset_total_run");
     if (!_controller->resetTotalRunDuration()) {
@@ -901,7 +900,7 @@ void FanWeb::handleApiRuntimeReset() {
 }
 
 void FanWeb::handleApiIrLearn() {
-    if (!Esp32BaseWeb::checkAuth()) return;
+    if (!Esp32BaseWeb::checkPostAllowed("fan_ir_learn")) return;
 
     if (Esp32BaseWeb::isMethod(Esp32BaseWeb::METHOD_POST) && Esp32BaseWeb::hasParam("key_index")) {
         uint32_t idx = 0;

@@ -21,7 +21,7 @@
 | `slp_s` | `sleep_wait` | int | 60 | 停止后进入 power save 的等待秒数，最小 1 |
 | `restore` | `auto_restore` | bool | true | 上电恢复策略 |
 | `led_ms` | `led_flash_ms` | int | 200 | 操作反馈 LED 闪烁时长 ms |
-| `rt_save_m` | `runtime_save_min` | int | 1 | 运行状态持久化间隔分钟 |
+| `rt_save_m` | `runtime_save_min` | int | 10 | 运行状态持久化间隔分钟，10-60 |
 | `last_spd` | `target_speed` | int | 0 | 上次速度 |
 | `last_tim` | `timer_remaining` | int | 0 | 上次剩余定时秒数 |
 | `run_s` | `run_duration` | int | 0 | 累计运行秒数；当前不升级 64-bit，见 `docs/RUN_DURATION_DECISION.md` |
@@ -91,8 +91,8 @@ RAM 历史曲线由 `FanHistory` 维护，两组环形缓冲均只保存在 RAM 
 - `setSpeed(1..min_spd-1)` 自动提升到 `min_spd`。
 - 软启动过程中收到新速度，按当前状态重新调度。
 - 堵转后任意启动指令进入 `SYS_RECOVERING`，恢复窗口为软启动时间 + 堵转检测时间 + 500 ms；重复速度指令不重置窗口。
-- 运行状态持久化需要限频，避免 NVS 高频写入。
-- 倒计时最后 60 秒内每 10 秒强制保存一次 `last_tim`，降低断电恢复漂移。
+- 运行状态持久化默认每 10 分钟保存一次，可配置为 10-60 分钟，避免 NVS 高频写入。
+- 倒计时不在最后 60 秒额外强制保存；断电恢复允许丢失最多一个运行状态保存间隔内的 `last_tim` 和 `run_s` 变化。
 - 加速键和减速键同时长按 >5s 执行完整出厂重置，清除风扇配置、WiFi 凭证和 Web 密码后重启。
 
 ## 5. FanWeb 设计
@@ -103,7 +103,7 @@ RAM 历史曲线由 `FanHistory` 维护，两组环形缓冲均只保存在 RAM 
 - `GET /history`：宽屏历史曲线。
 - `GET /config`：参数配置、运行时和历史曲线配置。
 - `GET /ir`：红外学习入口。
-- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Auth、Reboot，并通过 `addPage(path, title, handler)` 展示业务入口。
+- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、System Logs、Auth、System Tools，并通过 `addPage(path, title, handler)` 展示业务入口。
 
 API：
 
@@ -122,6 +122,7 @@ API：
 实现约束：
 
 - 所有页面和 API 都调用 `Esp32BaseWeb::checkAuth()`。
+- 会改变设备状态或持久化数据的业务 API 必须调用 `Esp32BaseWeb::checkPostAllowed()`，复用基础库 POST-only、Web Auth 和 Origin/Referer 同源检查；只读 GET 分支不触发副作用。
 - 业务页面不显式放置 `/esp32base/auth` 修改密码入口；该入口由 Esp32Base 系统导航提供。
 - 业务页面不自建业务入口或 Esp32Base 系统页面导航；顶部业务入口和底部系统入口统一由 Esp32Base 输出。
 - JSON 输出优先使用固定缓冲区。
@@ -200,7 +201,7 @@ API：
 当前验证：
 
 - `pio run -e esp32dev` 通过。
-- `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用、BOOT 清 WiFi 时序、持久化失败事务边界和 IR 保存失败回滚。
+- `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用、BOOT 清 WiFi 时序、持久化失败事务边界、IR 保存失败回滚和业务副作用 API 的 POST/同源保护。
 - 串口上传已验证；每次烧录前应重新确认实际串口，上传速率固定为 115200。
 - `pio run -e esp32dev -t webota` 通过，使用 Esp32Base `scripts/esp32base_webota.py`。
 - AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs`、`/esp32base/auth` 和 `/esp32base/ota` 已完成首轮实机验证；`/ir` 需随下一轮 Web 验证确认，具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。

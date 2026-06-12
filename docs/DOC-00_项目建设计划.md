@@ -85,6 +85,7 @@
 - 已接入并验证 `pio run -e esp32dev -t webota`。
 - 已验证 WiFi power save 后 `/api/status` 仍可访问；具体测试参数以当次验证记录为准。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`History`、`Settings`、`IR` 入口。
+- 业务副作用 API 使用 `Esp32BaseWeb::checkPostAllowed()` 复用基础库 POST-only、Web Auth 和同源检查；只读 API 保持 GET 可用。
 - Web Auth 已使用 Esp32Base 内置持久化能力，默认账号密码由应用提供，修改入口为 `/esp32base/auth`。
 - Esp32Base Health tick、NTP 未同步降噪和 mDNS 首次解析延迟已完成首轮观察；mDNS 若多设备稳定复现明显延迟，再反馈 Esp32Base。
 

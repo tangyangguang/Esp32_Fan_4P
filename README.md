@@ -83,10 +83,11 @@ pio device monitor -e esp32dev
 - 已通过 `/esp32base/ota` 上传固件，OTA 后基础库状态、业务 API、`/fan` 和日志页恢复正常。
 - 已验证 WiFi power save 后 `/api/status` 仍可访问；具体 `sleep_wait` 测试值以验证记录为准。
 - 业务页使用 `Esp32BaseWeb::addPage(path, title, handler)` 注册，Esp32Base 首页和内置顶栏可展示 `Fan`、`History`、`Settings`、`IR` 入口。
+- 业务副作用 API 使用 `Esp32BaseWeb::checkPostAllowed()` 复用 POST-only、Web Auth 和同源检查；只读 API 保持 GET 可用。
 - Web Auth 已迁移到 Esp32Base 内置持久化能力；本项目设置默认 `admin/admin`，账号密码修改入口为 `/esp32base/auth`。
 - Esp32Base Health tick、NTP 未同步降噪和 mDNS 首次解析延迟已完成首轮观察；mDNS 若多设备稳定复现明显延迟，再反馈 Esp32Base。
 
-`platformio.ini` 显式列出 Esp32Base Full profile 使用到的 Arduino framework 库，并通过 `src/deps_esp32base_full.cpp` 锚定 LDF 链接依赖；这与 Esp32Base 示例工程保持一致。
+`platformio.ini` 显式列出 Esp32Base Full profile 使用到的 Arduino framework 库，并通过 `src/deps_esp32base_full.cpp` 锚定 LDF 链接依赖；这与 Esp32Base 示例工程保持一致。Web route 容量以及 FileLog 路径、容量、轮转和默认模式均使用 Esp32Base 当前默认值；基础库默认 FileLog 模式为 WARN。
 
 ## 文档
 

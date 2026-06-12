@@ -100,6 +100,7 @@ uint8_t g_paramCount = 0;
 Esp32BaseWeb::Method g_method = Esp32BaseWeb::METHOD_GET;
 int g_lastCode = 0;
 char g_lastBody[1024] = "";
+bool g_sameOrigin = true;
 
 int findInt(const char* ns, const char* key) {
     for (uint8_t i = 0; i < 80; ++i) {
@@ -140,6 +141,10 @@ void webSetParam(const char* name, const char* value) {
     strncpy(g_params[g_paramCount].name, name, sizeof(g_params[g_paramCount].name) - 1);
     strncpy(g_params[g_paramCount].value, value, sizeof(g_params[g_paramCount].value) - 1);
     ++g_paramCount;
+}
+
+void webSetSameOrigin(bool same_origin) {
+    g_sameOrigin = same_origin;
 }
 }
 
@@ -282,6 +287,18 @@ bool Esp32BaseNtp::formatTime(char* out, size_t len, const char*) {
 }
 
 bool Esp32BaseWeb::checkAuth() { return true; }
+bool Esp32BaseWeb::checkPostAllowed(const char*) {
+    if (!checkAuth()) return false;
+    if (!isMethod(METHOD_POST)) {
+        sendText(405, "Method Not Allowed");
+        return false;
+    }
+    if (!g_sameOrigin) {
+        sendText(403, "Forbidden");
+        return false;
+    }
+    return true;
+}
 void Esp32BaseWeb::setDefaultAuth(const char* user, const char* pass) {
     strncpy(g_authUser, user ? user : "", sizeof(g_authUser) - 1);
     strncpy(g_authPass, pass ? pass : "", sizeof(g_authPass) - 1);
@@ -412,6 +429,7 @@ void setUp() {
     g_failSetBoolKey[0] = '\0';
     g_failSetStrKey[0] = '\0';
     g_wifiClearFail = false;
+    g_sameOrigin = true;
     webReset();
 }
 
@@ -707,6 +725,28 @@ void test_controller_config_timer_restore_and_sleep() {
     TEST_ASSERT_TRUE(Esp32BaseWiFi::powerSave());
 }
 
+void test_controller_runtime_save_interval_defaults_and_clamps_to_ten_minutes() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    makeController(fan, buttons, led, ir, controller);
+
+    TEST_ASSERT_EQUAL(10, controller.getRuntimeSaveIntervalMinutes());
+    TEST_ASSERT_TRUE(controller.setRuntimeSaveIntervalMinutes(1));
+    TEST_ASSERT_EQUAL(10, controller.getRuntimeSaveIntervalMinutes());
+
+    Esp32BaseConfig::setInt("fan", "rt_save_m", 1);
+    FanDriver persistedFan(6, 15);
+    ButtonDriver persistedButtons(16, 17);
+    LedIndicator persistedLed(18, true);
+    IRReceiverDriver persistedIr(19);
+    FanController persistedController(persistedFan, persistedButtons, persistedLed, persistedIr);
+    makeController(persistedFan, persistedButtons, persistedLed, persistedIr, persistedController);
+    TEST_ASSERT_EQUAL(10, persistedController.getRuntimeSaveIntervalMinutes());
+}
+
 void test_controller_force_save_flushes_runtime_state() {
     FanDriver fan(5, 12);
     ButtonDriver buttons(14, 4);
@@ -861,18 +901,44 @@ void test_controller_runtime_save_failure_retries_next_tick() {
     IRReceiverDriver ir(13);
     FanController controller(fan, buttons, led, ir);
     makeController(fan, buttons, led, ir, controller);
-    TEST_ASSERT_TRUE(controller.setRuntimeSaveIntervalMinutes(1));
+    TEST_ASSERT_TRUE(controller.setRuntimeSaveIntervalMinutes(10));
     TEST_ASSERT_TRUE(controller.setSpeed(40));
 
     strcpy(g_failSetIntKey, "run_s");
-    g_mockMillis = 61000;
+    g_mockMillis = 601000;
     controller.tick();
     TEST_ASSERT_EQUAL(0, Esp32BaseConfig::getInt("fan", "run_s", 0));
 
     g_failSetIntKey[0] = '\0';
-    g_mockMillis = 62000;
+    g_mockMillis = 602000;
     controller.tick();
-    TEST_ASSERT_EQUAL(62, Esp32BaseConfig::getInt("fan", "run_s", 0));
+    TEST_ASSERT_EQUAL(602, Esp32BaseConfig::getInt("fan", "run_s", 0));
+}
+
+void test_controller_timer_countdown_does_not_force_save_in_last_minute() {
+    Esp32BaseConfig::setInt("fan", "soft_on", 0);
+    Esp32BaseConfig::setInt("fan", "blk_ms", 60000);
+
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    makeController(fan, buttons, led, ir, controller);
+    TEST_ASSERT_TRUE(controller.setRuntimeSaveIntervalMinutes(10));
+    TEST_ASSERT_TRUE(controller.setSpeed(40));
+    TEST_ASSERT_TRUE(controller.setTimer(70));
+
+    g_flushCount = 0;
+    g_mockMillis = 10000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(60, controller.getTimerRemaining());
+    TEST_ASSERT_EQUAL(0, g_flushCount);
+
+    g_mockMillis = 20000;
+    controller.tick();
+    TEST_ASSERT_EQUAL(50, controller.getTimerRemaining());
+    TEST_ASSERT_EQUAL(0, g_flushCount);
 }
 
 void test_controller_reset_total_run_duration_preserves_boot_run() {
@@ -1033,6 +1099,20 @@ void test_web_api_speed_timer_config_and_ir() {
 
     webReset();
     webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("runtime_save_min", "1");
+    FanWeb::handleApiConfig();
+    TEST_ASSERT_EQUAL(400, g_lastCode);
+    TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "invalid runtime_save_min"));
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("runtime_save_min", "10");
+    FanWeb::handleApiConfig();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_EQUAL(10, controller.getRuntimeSaveIntervalMinutes());
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
     webSetParam("key_index", "2");
     FanWeb::handleApiIrLearn();
     TEST_ASSERT_EQUAL(200, g_lastCode);
@@ -1077,6 +1157,40 @@ void test_web_invalid_requests_return_ok_false() {
     FanWeb::handleApiIrLearn();
     TEST_ASSERT_EQUAL(400, g_lastCode);
     TEST_ASSERT_NOT_NULL(strstr(g_lastBody, "\"ok\":false"));
+}
+
+void test_web_side_effect_apis_require_allowed_post() {
+    FanDriver fan(5, 12);
+    ButtonDriver buttons(14, 4);
+    LedIndicator led(2, true);
+    IRReceiverDriver ir(13);
+    FanController controller(fan, buttons, led, ir);
+    FanWeb web(controller, ir);
+    (void)web;
+    makeController(fan, buttons, led, ir, controller);
+    controller.setSoftStartTime(0);
+    controller.setBlockDetectTime(60000);
+
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetParam("speed", "50");
+    FanWeb::handleApiSpeed();
+    TEST_ASSERT_EQUAL(200, g_lastCode);
+    TEST_ASSERT_EQUAL(50, controller.getTargetSpeed());
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_GET);
+    FanWeb::handleApiStop();
+    TEST_ASSERT_EQUAL(405, g_lastCode);
+    TEST_ASSERT_EQUAL(50, controller.getTargetSpeed());
+    TEST_ASSERT_EQUAL(50, controller.getCurrentSpeed());
+
+    webReset();
+    webSetMethod(Esp32BaseWeb::METHOD_POST);
+    webSetSameOrigin(false);
+    webSetParam("speed", "75");
+    FanWeb::handleApiSpeed();
+    TEST_ASSERT_EQUAL(403, g_lastCode);
+    TEST_ASSERT_EQUAL(50, controller.getTargetSpeed());
 }
 
 void test_web_config_write_failure_returns_error_without_applying() {
@@ -1373,6 +1487,7 @@ int main(int, char**) {
     RUN_TEST(test_app_runtime_boot_button_clear_wifi_timing);
     RUN_TEST(test_app_runtime_boot_button_clear_wifi_failure_skips_restart);
     RUN_TEST(test_controller_config_timer_restore_and_sleep);
+    RUN_TEST(test_controller_runtime_save_interval_defaults_and_clamps_to_ten_minutes);
     RUN_TEST(test_controller_force_save_flushes_runtime_state);
     RUN_TEST(test_controller_flush_failure_returns_false_and_rolls_back_visible_state);
     RUN_TEST(test_controller_ir_persist_failure_keeps_memory_state);
@@ -1380,6 +1495,7 @@ int main(int, char**) {
     RUN_TEST(test_controller_auto_restore_enable_saves_current_state);
     RUN_TEST(test_controller_min_speed_change_reapplies_low_target);
     RUN_TEST(test_controller_runtime_save_failure_retries_next_tick);
+    RUN_TEST(test_controller_timer_countdown_does_not_force_save_in_last_minute);
     RUN_TEST(test_controller_reset_total_run_duration_preserves_boot_run);
     RUN_TEST(test_controller_reset_total_run_duration_failure_rolls_back);
     RUN_TEST(test_controller_ignores_negative_persisted_values);
@@ -1388,6 +1504,7 @@ int main(int, char**) {
     RUN_TEST(test_controller_factory_reset_clears_app_and_library_namespaces);
     RUN_TEST(test_web_api_speed_timer_config_and_ir);
     RUN_TEST(test_web_invalid_requests_return_ok_false);
+    RUN_TEST(test_web_side_effect_apis_require_allowed_post);
     RUN_TEST(test_web_config_write_failure_returns_error_without_applying);
     RUN_TEST(test_web_runtime_save_failure_returns_error);
     RUN_TEST(test_web_runtime_reset_api_success_and_failure);

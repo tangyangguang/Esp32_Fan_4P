@@ -75,7 +75,7 @@ Infrastructure
 | `Esp32BaseWatchdog` | 主循环看门狗 |
 | `Esp32BaseWiFi::setPowerSave` | 停止后进入 WiFi power save，替代 ESP8266 modem sleep |
 | `Esp32BaseFs` | LittleFS 挂载 |
-| `Esp32BaseFileLog` | `/logs/eb_app.log` 滚动日志；当前实机验证使用 INFO，量产建议 WARN |
+| `Esp32BaseFileLog` | Esp32Base 默认 `/esp32base/logs/system.log` 滚动日志；默认模式为 WARN |
 | `Esp32BaseHealth` | 健康诊断 |
 | `Esp32BaseWiFi` | STA 连接、AP 配网、清凭证、power save |
 | `Esp32BaseDns` | captive portal DNS |
@@ -110,7 +110,7 @@ Infrastructure
 
 1. 设置固件信息；默认 hostname 由 `ESP32BASE_DEFAULT_HOSTNAME` 编译宏提供。
 2. 调用 `Esp32BaseWeb::setDefaultAuth("admin", "admin")`，并设置设备名、业务首页和系统导航模式。
-3. 注册 `/fan`、`/history`、`/config`、`/ir` 和 `/api/*` 路由；业务页面通过 `addPage(path, title, handler)` 进入基础库导航。
+3. 注册 `/fan`、`/history`、`/config`、`/ir` 和 `/api/*` 路由；业务页面通过 `addPage(path, title, handler)` 进入基础库导航，业务副作用 API 使用 `Esp32BaseWeb::checkPostAllowed()` 复用 POST-only、Web Auth 和同源检查。
 4. 在 `Esp32Base::begin()` 前启用 Config write/read audit，覆盖基础库启动期配置读取。
 5. 调用 `Esp32Base::begin()`。
 6. 启用文件日志。
@@ -148,6 +148,6 @@ build_flags =
 | --- | --- | --- |
 | Full profile framework 依赖未被 LDF 自动发现 | 链接缺少 WiFi/WebServer 等符号 | 按 Esp32Base 示例显式声明 `lib_deps` 并加入 `deps_esp32base_full.cpp` |
 | Web Auth 职责混入应用配置 | 重复实现密码持久化和修改页面 | 使用 Esp32Base 内置 Auth；应用只设置默认账号密码，修改入口使用 `/esp32base/auth` |
-| Web 路由容量不足 | 自定义 API 注册失败 | 当前 `ESP32BASE_WEB_MAX_ROUTES=16`；若仍不足，反馈基础库或调整 API 聚合 |
+| Web 路由容量不足 | 自定义 API 注册失败 | 使用 Esp32Base 当前默认 route 容量；若仍不足，反馈基础库或调整 API 聚合 |
 | WiFi power save 不等同于 ESP8266 modem sleep | 省电和响应表现需实测 | 实机验证 Web 可访问性和响应时间 |
 | IRremoteESP8266 在 ESP32 下资源占用较高 | RAM/实时性风险 | 先沿用成熟库，实测后再决定是否替换 |
