@@ -108,7 +108,8 @@ public:
         BUILTIN_WIFI,
         BUILTIN_OTA,
         BUILTIN_LOGS,
-        BUILTIN_REBOOT,
+        BUILTIN_APP_EVENTS,
+        BUILTIN_TOOLS,
         BUILTIN_SYSTEM,
         BUILTIN_AUTH
     };
@@ -118,6 +119,7 @@ public:
     static bool isAuthEnabled();
     static void setAuthEnabled(bool enabled);
     static bool checkAuth();
+    static bool checkPostAllowed(const char* context = nullptr);
     static bool verifyAuth();
     static bool verifyAuth(const char* user, const char* pass);
     static bool saveAuth(const char* user, const char* pass);

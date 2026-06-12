@@ -26,7 +26,7 @@
 | F-06 | 定时运行 | 支持 30min/1h/2h/4h/8h 预设和最大 99 小时自定义，倒计时结束停止 | 本项目 FanController/FanWeb |
 | F-07 | Web 控制 | `/fan` 查看状态并控制速度/定时，Basic Auth 鉴权，页面移动端可用 | Esp32Base Web + 本项目 FanWeb |
 | F-08 | REST API | 提供 `/api/status`、`/api/speed`、`/api/timer`、`/api/stop`、`/api/config`、`/api/runtime/reset`、`/api/ir/learn`、`/api/history`、`/api/history/config` | Esp32Base 路由 + 本项目 FanWeb |
-| F-09 | 持久日志 | 文件日志断电不丢失，Web 可查看，默认 `/logs/eb_app.log`，4 × 32KB，WARN 级别 | Esp32Base FileLog/Web Logs |
+| F-09 | 持久日志 | 文件日志断电不丢失，Web 可查看，使用 Esp32Base 默认 `/esp32base/logs/system.log`，4 × 32KB；当前调试固件使用 INFO 模式，量产建议 WARN | Esp32Base FileLog/Web Logs |
 | F-10 | OTA | Web OTA 可用，复用 Web Basic Auth | Esp32Base OTA |
 | F-11 | WiFi 配网 | 无凭证时进入 AP/captive portal 配网；清凭证后重启进入配网 | Esp32Base WiFi/DNS/Web + main |
 | F-12 | 断电恢复 | 可配置恢复上次速度和剩余定时，也可配置上电保持停止 | 本项目 FanController + Esp32BaseConfig |

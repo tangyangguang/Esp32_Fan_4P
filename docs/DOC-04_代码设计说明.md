@@ -103,7 +103,7 @@ RAM 历史曲线由 `FanHistory` 维护，两组环形缓冲均只保存在 RAM 
 - `GET /history`：宽屏历史曲线。
 - `GET /config`：参数配置、运行时和历史曲线配置。
 - `GET /ir`：红外学习入口。
-- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、Logs、Auth、Reboot，并通过 `addPage(path, title, handler)` 展示业务入口。
+- Esp32Base 内置页面继续使用 `/esp32base/*`，包括 WiFi、OTA、System Logs、Auth、System Tools，并通过 `addPage(path, title, handler)` 展示业务入口。
 
 API：
 
@@ -122,6 +122,7 @@ API：
 实现约束：
 
 - 所有页面和 API 都调用 `Esp32BaseWeb::checkAuth()`。
+- 会改变设备状态或持久化数据的业务 API 必须调用 `Esp32BaseWeb::checkPostAllowed()`，复用基础库 POST-only、Web Auth 和 Origin/Referer 同源检查；只读 GET 分支不触发副作用。
 - 业务页面不显式放置 `/esp32base/auth` 修改密码入口；该入口由 Esp32Base 系统导航提供。
 - 业务页面不自建业务入口或 Esp32Base 系统页面导航；顶部业务入口和底部系统入口统一由 Esp32Base 输出。
 - JSON 输出优先使用固定缓冲区。
@@ -200,7 +201,7 @@ API：
 当前验证：
 
 - `pio run -e esp32dev` 通过。
-- `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用、BOOT 清 WiFi 时序、持久化失败事务边界和 IR 保存失败回滚。
+- `pio test -e native` 通过，native 用例覆盖 FanDriver、FanController、FanWeb API/HTML chunk、FanAppRuntime 路由注册、Config audit 启用、BOOT 清 WiFi 时序、持久化失败事务边界、IR 保存失败回滚和业务副作用 API 的 POST/同源保护。
 - 串口上传已验证；每次烧录前应重新确认实际串口，上传速率固定为 115200。
 - `pio run -e esp32dev -t webota` 通过，使用 Esp32Base `scripts/esp32base_webota.py`。
 - AP 配网、局域网访问、`/esp32base/api/status`、业务 API、`/fan`、`/config`、`/esp32base/logs`、`/esp32base/auth` 和 `/esp32base/ota` 已完成首轮实机验证；`/ir` 需随下一轮 Web 验证确认，具体 IP、串口和 Auth 持久化值以当前设备实际状态为准。
