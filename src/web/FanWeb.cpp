@@ -358,7 +358,7 @@ static const char CONFIG_STOP_END[] PROGMEM = "'><div class=help>Ramp down time.
 static const char CONFIG_BLOCK_END[] PROGMEM = "'><div class=help>No RPM for this long means blocked.</div></div>"
     "<div class=field><label>LED flash (ms)</label><input type=number name=led_flash_ms min=0 max=2000 value='";
 static const char CONFIG_LED_FLASH_END[] PROGMEM = "'><div class=help>0 disables action feedback flash.</div></div>"
-    "<div class=field><label>Runtime save (min)</label><input type=number name=runtime_save_min min=1 max=60 value='";
+    "<div class=field><label>Runtime save (min)</label><input type=number name=runtime_save_min min=10 max=60 value='";
 static const char CONFIG_RUNTIME_SAVE_END[] PROGMEM = "'><div class=help>Larger values reduce Flash wear; after power loss, timer and total run can lose up to this interval.</div></div>"
     "<div class=field><label>Power-on restore</label><select name=auto_restore><option value=1 ";
 static const char CONFIG_AUTO_END[] PROGMEM = ">Enabled</option><option value=0 ";
@@ -825,7 +825,7 @@ void FanWeb::handleApiConfig() {
         }
         if (Esp32BaseWeb::hasParam("runtime_save_min")) {
             uint32_t parsed = 0;
-            if (!parseUintParam("runtime_save_min", 1, 60, &parsed)) {
+            if (!parseUintParam("runtime_save_min", 10, 60, &parsed)) {
                 Esp32BaseWeb::sendJson(400, "{\"ok\":false,\"error\":\"invalid runtime_save_min\"}");
                 return;
             }

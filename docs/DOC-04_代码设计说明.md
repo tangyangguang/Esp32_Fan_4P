@@ -21,7 +21,7 @@
 | `slp_s` | `sleep_wait` | int | 60 | 停止后进入 power save 的等待秒数，最小 1 |
 | `restore` | `auto_restore` | bool | true | 上电恢复策略 |
 | `led_ms` | `led_flash_ms` | int | 200 | 操作反馈 LED 闪烁时长 ms |
-| `rt_save_m` | `runtime_save_min` | int | 1 | 运行状态持久化间隔分钟 |
+| `rt_save_m` | `runtime_save_min` | int | 10 | 运行状态持久化间隔分钟，10-60 |
 | `last_spd` | `target_speed` | int | 0 | 上次速度 |
 | `last_tim` | `timer_remaining` | int | 0 | 上次剩余定时秒数 |
 | `run_s` | `run_duration` | int | 0 | 累计运行秒数；当前不升级 64-bit，见 `docs/RUN_DURATION_DECISION.md` |
@@ -91,8 +91,8 @@ RAM 历史曲线由 `FanHistory` 维护，两组环形缓冲均只保存在 RAM 
 - `setSpeed(1..min_spd-1)` 自动提升到 `min_spd`。
 - 软启动过程中收到新速度，按当前状态重新调度。
 - 堵转后任意启动指令进入 `SYS_RECOVERING`，恢复窗口为软启动时间 + 堵转检测时间 + 500 ms；重复速度指令不重置窗口。
-- 运行状态持久化需要限频，避免 NVS 高频写入。
-- 倒计时最后 60 秒内每 10 秒强制保存一次 `last_tim`，降低断电恢复漂移。
+- 运行状态持久化默认每 10 分钟保存一次，可配置为 10-60 分钟，避免 NVS 高频写入。
+- 倒计时不在最后 60 秒额外强制保存；断电恢复允许丢失最多一个运行状态保存间隔内的 `last_tim` 和 `run_s` 变化。
 - 加速键和减速键同时长按 >5s 执行完整出厂重置，清除风扇配置、WiFi 凭证和 Web 密码后重启。
 
 ## 5. FanWeb 设计
