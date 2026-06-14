@@ -144,7 +144,7 @@ static const char APP_STYLE[] PROGMEM =
     ".stat span{display:block;color:#6b7280;font-size:14px}.stat b{display:block;font-size:14px;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827}.stat.state b{white-space:normal}.stat small{display:block;color:#6b7280;font-size:12px;margin-top:2px;line-height:1.3}"
     ".chips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}"
     "button,.btn{background:#2563a6;color:#fff;border:0;border-radius:6px;padding:8px 7px;cursor:pointer;text-align:center;text-decoration:none;font-size:14px;font-weight:400;min-height:36px;box-sizing:border-box}"
-    "button.secondary,.btn.secondary{background:#6b7280}button.danger{background:#b64a2f}.row{display:grid;grid-template-columns:1fr 76px;gap:7px;align-items:center;margin-top:4px}"
+    "button.secondary,.btn.secondary{background:#6b7280}button.clear-action,.btn.clear-action{background:#b45309;color:#fff}button.danger{background:#b64a2f}.row{display:grid;grid-template-columns:1fr 76px;gap:7px;align-items:center;margin-top:4px}"
     ".actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:14px}.actions button{min-height:40px}"
     ".formgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.field{min-width:0}label{display:block;font-size:14px;font-weight:400;color:#374151;margin:0 0 3px}"
     "input,select{width:100%;min-height:38px;box-sizing:border-box;border:1px solid #c8d0da;border-radius:6px;padding:8px;background:#fff;font-size:14px;font-weight:400;margin:0;color:#111827}"
@@ -181,7 +181,7 @@ static const char FAN_SPEED_INPUT_END[] PROGMEM =
     "</div><label>Custom (min)</label><div class=row><input id=tv type=number min=0 max=5940 value='";
 static const char FAN_TIMER_INPUT_END[] PROGMEM =
     "'><button onclick='tm(document.getElementById(\"tv\").value)'>Set</button></div>"
-    "<div class=actions><button class=secondary onclick='tm(0)'>Cancel timer</button><button class=danger onclick='stopFan()'>Stop fan</button></div>"
+    "<div class=actions><button class=clear-action onclick='tm(0)'>Cancel timer</button><button class=danger onclick='stopFan()'>Stop fan</button></div>"
     "<div class=help>Cancel timer keeps the fan running. Stop fan turns the fan off and clears the timer.</div></div>"
     "<script>"
     "var rem=";
@@ -366,8 +366,8 @@ static const char CONFIG_AUTO_END2[] PROGMEM = ">Disabled</option></select><div 
     "<button id=saveBtn type=submit>Save</button><span id=saveMsg class='savebar muted'>Ready</span></form>"
     "<div class=panel><h3>Runtime</h3><div class=stat><span>Total run</span><b id=cfgRunTotal>";
 static const char CONFIG_RUNTIME_END[] PROGMEM =
-    "</b></div><button id=runResetBtn type=button onclick='resetTotalRun()'>Clear total run</button>"
-    "<span id=runResetMsg class='savebar muted'>Boot run is not cleared.</span></div>"
+    "</b></div><button id=runResetBtn class=clear-action type=button onclick='resetTotalRun()'>Clear total run</button>"
+    "<span id=runResetMsg class='savebar muted'>Only total run is reset. Boot run keeps counting.</span></div>"
     "<form class=panel onsubmit='saveHistCfg(this);return false'><h3>History</h3><div class=histcfg>"
     "<div><label>Recent points</label><input name=short_points type=number min=100 max=1200 value=500></div>"
     "<div><label>Recent ms</label><input name=short_sample_ms type=number min=100 max=5000 value=500></div>"
@@ -382,7 +382,7 @@ static const char CONFIG_RUNTIME_END[] PROGMEM =
     "function applyCfg(d,f){if(!d)return;f.min_speed.value=d.min_effective_speed;f.sleep_wait.value=d.sleep_wait;f.soft_start.value=d.soft_start;f.soft_stop.value=d.soft_stop;f.block_detect.value=d.block_detect;f.led_flash_ms.value=d.led_flash_ms;f.runtime_save_min.value=d.runtime_save_min;f.auto_restore.value=d.auto_restore?1:0}"
     "function reloadCfg(f){fetch('/api/config').then(r=>r.json()).then(j=>{if(j.ok)applyCfg(j.data,f)})}"
     "function saveCfg(f){var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='Saving';setMsg('Saving...','muted');fetch('/api/config',{method:'POST',body:new URLSearchParams(new FormData(f))}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Save';if(x.ok&&x.j.ok){applyCfg(x.j.data,f);var n=x.j.changed||0;setMsg('Saved - '+(n?n+' changed':'no changes')+' - '+new Date().toLocaleTimeString(),'oktxt')}else{reloadCfg(f);setMsg(x.j&&x.j.error?x.j.error:'Save failed','errtxt')}}).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('Save failed: network error','errtxt')})}"
-    "function resetTotalRun(){if(!confirm('Clear total run? Boot run will continue.'))return;var b=document.getElementById('runResetBtn');b.disabled=true;b.textContent='Clearing';setRun('Clearing...','muted');fetch('/api/runtime/reset',{method:'POST'}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Clear total run';if(x.ok&&x.j.ok){document.getElementById('cfgRunTotal').textContent=rf(x.j.run_duration);setRun('Total run cleared','oktxt')}else setRun(x.j&&x.j.error?x.j.error:'Clear failed','errtxt')}).catch(()=>{b.disabled=false;b.textContent='Clear total run';setRun('Clear failed: network error','errtxt')})}"
+    "function resetTotalRun(){if(!confirm('Clear saved total run? Boot run will keep counting.'))return;var b=document.getElementById('runResetBtn');b.disabled=true;b.textContent='Clearing';setRun('Clearing...','muted');fetch('/api/runtime/reset',{method:'POST'}).then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(x=>{b.disabled=false;b.textContent='Clear total run';if(x.ok&&x.j.ok){document.getElementById('cfgRunTotal').textContent=rf(x.j.run_duration);setRun('Total run cleared. Boot run keeps counting.','oktxt')}else setRun(x.j&&x.j.error?x.j.error:'Clear failed','errtxt')}).catch(()=>{b.disabled=false;b.textContent='Clear total run';setRun('Clear failed: network error','errtxt')})}"
     "function setHistCfgMsg(t,c){var m=document.getElementById('histCfgMsg');m.textContent=t;m.className='savebar '+c}"
     "function hw(s){s=parseInt(s||0);if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'m';var h=Math.floor(s/3600),m=Math.round((s%3600)/60);return h+'h '+m+'m'}"
     "function applyHistCfg(d){var f=document.querySelector('form .histcfg').closest('form');if(!d||!f)return;f.short_points.value=d.short_points;f.short_sample_ms.value=d.short_sample_ms;f.long_points.value=d.long_points;f.long_sample_s.value=d.long_sample_s;setHistCfgMsg('Recent '+d.short_points+' points - '+hw(d.short_window_seconds)+' · Trend '+d.long_points+' points - '+hw(d.long_window_seconds),'muted')}"
@@ -507,7 +507,7 @@ void FanWeb::handleIrPage() {
         snprintf(row, sizeof(row),
             "<div class=irrow id=irr%u><div><b>%s</b><span id=irv%u%s>%s</span></div>"
             "<button onclick='learn(%u,\"%s\")'>Learn</button>"
-            "<button class=secondary onclick='clearIr(%u,\"%s\")'>Clear</button></div>",
+            "<button class=clear-action onclick='clearIr(%u,\"%s\")'>Clear</button></div>",
             i, irKeyName(i), i, duplicate ? " class=warn" : "", value,
             i, irKeyName(i), i, irKeyName(i));
         Esp32BaseWeb::sendChunk(row);

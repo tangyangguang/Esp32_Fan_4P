@@ -1337,6 +1337,8 @@ void test_web_pages_emit_html_chunks() {
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/history"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, ">Recent</button>"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, ">Trend</button>"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "button.clear-action,.btn.clear-action{background:#b45309;color:#fff}"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "class=clear-action onclick='tm(0)'"));
     TEST_ASSERT_NULL(strstr(g_chunkBody, "class='chart widechart'"));
 
     webReset();
@@ -1355,8 +1357,10 @@ void test_web_pages_emit_html_chunks() {
     TEST_ASSERT_NULL(strstr(g_chunkBody, "name=long_hours"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/history/config"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Clear total run"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "id=runResetBtn class=clear-action"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Only total run is reset. Boot run keeps counting."));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "/api/runtime/reset"));
-    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "confirm('Clear total run?"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "confirm('Clear saved total run?"));
 
     webReset();
     FanWeb::handleIrPage();
@@ -1371,6 +1375,7 @@ void test_web_pages_emit_html_chunks() {
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "Gear 4 / 100%"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "learn(11,\"Gear 4 / 100%\")"));
     TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "clearIr(11,\"Gear 4 / 100%\")"));
+    TEST_ASSERT_NOT_NULL(strstr(g_chunkBody, "class=clear-action onclick='clearIr"));
 
     webReset();
     FanWeb::handleHistoryPage();
