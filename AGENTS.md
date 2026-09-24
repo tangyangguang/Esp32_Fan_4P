@@ -1,3 +1,5 @@
+任务涉及共同架构、平台契约的跨仓联动，或需要访问第二个仓库时，先读取 [`iot-base` 跨仓规则](../../platform/iot-base/AGENTS.md) 和相关权威文档，明确目标仓及授权范围；访问或修改每个目标仓前仍须读取该仓自己的规则。
+
 > 目录于 2026-09-08 从 `/Users/tyg/dir/claude_dir/Esp32_Fan_4P` 迁移到 `/Users/tyg/workspace/iot/devices/Esp32_Fan_4P`；仓库仍可能包含旧路径，执行相关命令前先按新目录核对并修正，完成本项目的路径清理和验证后删除本条。
 
 ## IoT高效推进与验证原则
